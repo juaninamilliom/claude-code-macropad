@@ -39,7 +39,7 @@ audio module, then opens a WebSocket to the transcription service. It logs
 flushed once connected, so nothing is lost. Later presses in the same session are
 faster.
 
-## Nothing happens when I press a chord key
+## Nothing happens when I press a bound key
 
 In order:
 
@@ -63,12 +63,15 @@ In order:
    `--print` mode, which exits complaining that no prompt was given, and `grep`
    hides the error and prints nothing. `-p` does not help: a headless run logs
    no keybinding lines at all.
-3. **Is the pad sending a sequence, not a simultaneous combo?** If the chord types
-   raw characters, the two keystrokes are firing together. Rebuild as two ordered
-   steps.
-4. **Is something else eating `ctrl+x`?** tmux and screen use their own prefixes.
-   If you have rebound either to `ctrl+x`, change the prefix in
-   `config/keybindings.json` and your device config — the two must match.
+3. **Is your terminal passing Option through as a modifier?** If the key types a
+   bare character — `å` for `alt+a`, `∆` for `alt+j` — Option is composing a
+   character instead. In iTerm2, set Profiles → Keys → Left Option key to
+   `Esc+`. The pass-through keys `opt+p`, `opt+t` and `opt+o` need the same
+   setting, so if those already work, this is not your problem.
+4. **Is the pad sending Option, not Command?** Command-N and Command-S are menu
+   shortcuts your terminal acts on itself, so a key recorded with the wrong
+   modifier opens a window instead of reaching Claude Code. Re-record it with
+   Option held.
 
 ## Hooks never fire
 

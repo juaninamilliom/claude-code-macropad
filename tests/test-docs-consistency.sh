@@ -2,19 +2,19 @@
 # Checks that every key this repo documents is documented as doing the same
 # thing everywhere it appears.
 #
-# Each guide writes the same keystroke in its own native syntax — markdown
-# chord prose, a Stream Deck two-column step table, a QMK macro, a QMK keycode,
-# a Karabiner manipulator — so a plain text diff across files catches nothing.
-# This parses each syntax and compares (key, meaning) *pairs*.
+# Each guide writes the same keystroke in its own native syntax — a markdown
+# table cell, a Stream Deck hotkey table, a QMK keycode, a Karabiner
+# manipulator — so a plain text diff across files catches nothing. This parses
+# each syntax and compares (key, meaning) *pairs*.
 #
 # Pairs, not key sets, is the point. Comparing sets only proves the same five
-# keys are named in every file; it passes happily when a guide teaches `[` as
-# "Next chat", which is a working key that does the opposite of what the reader
-# was told. So this catches a dropped character, a swapped character, and a
-# swapped label, in either the key column or the meaning column.
+# keys are named in every file; it passes happily when a guide teaches `alt+k`
+# as "Next chat", which is a working key that does the opposite of what the
+# reader was told. So this catches a dropped character, a swapped character,
+# and a swapped label, in either the key column or the meaning column.
 #
 # Two sources of truth:
-#   - config/keybindings.json for which chord runs which action.
+#   - config/keybindings.json for which keystroke runs which action.
 #   - The tables below for the English meaning of an action, and for the
 #     pass-through keys, which no config file in this repo defines. Claude Code
 #     binds those itself; they were read out of the 2.1.233 binary by hand.
@@ -22,10 +22,15 @@
 # cannot mean the config agrees with Claude Code.
 #
 # Every syntax is parsed, including the Karabiner manipulator in
-# docs/stream-deck.md, whose fifth spelling ("key_code": "x" plus
-# "open_bracket") went unchecked until now. It documents one chord as an
-# example, so it is checked as one: prefix is ctrl+x, second key is a real
-# chord.
+# docs/stream-deck.md, whose fifth spelling ("key_code": "k" carrying the
+# "left_option" modifier) is checked as the one binding it documents by
+# example: a single event, the Option modifier, and a key the config binds.
+#
+# docs/qmk-via.md needs section scoping where the others do not. Its bindings
+# and its pass-through keys are both `LALT(KC_x)`-shaped rows in two-column
+# tables, so shape alone cannot tell them apart. Each extractor reads only its
+# own "## " section; rename a heading and the extractor yields nothing, which
+# check_pairs reports as a failure rather than passing quietly.
 #
 # One gap, and it is in the source rather than here: docs/stream-deck.md lists
 # its pass-through keys in a prose sentence with no meanings attached, so only
@@ -87,13 +92,24 @@ key_for_keycode() {
   esac
 }
 
-# Karabiner spells the chord's second key as an HID usage name.
-key_for_karabiner() {
-  case "$1" in
-    open_bracket)  echo "[" ;;
-    close_bracket) echo "]" ;;
-    *)             echo "$1" ;;
+# QMK writes this repo's own bindings as keycodes too. Unlike the pass-through
+# table these are not a fixed list, so they are parsed rather than looked up:
+# LALT(KC_A) becomes alt+a. Anything else is returned verbatim, so a regression
+# to LCTL(...) or LGUI(...) names itself in the failure.
+key_for_binding_keycode() {
+  local kc="$1" inner
+  case "$kc" in
+    "LALT(KC_"?")")
+      inner="${kc#LALT(KC_}"; inner="${inner%)}"
+      printf 'alt+%s\n' "$(printf '%s' "$inner" | tr 'A-Z' 'a-z')" ;;
+    *) printf '%s\n' "$kc" ;;
   esac
+}
+
+# Prints one "## " section of a markdown file, heading line excluded. Used
+# where two tables in the same file share a row shape.
+md_section() {
+  awk -v h="$2" '$0 == h { s = 1; next } /^## / { if (s) exit } s' "$1"
 }
 
 for f in "$KEYBINDINGS" "$README" "$WORK_LOUDER" "$STREAM_DECK" "$QMK_VIA"; do
@@ -111,59 +127,68 @@ fi
 
 # ---------------------------------------------------------------- truth ----
 
-CHORD_TRUTH=""
+BINDING_TRUTH=""
 while IFS="$TAB" read -r key action; do
   [ -n "$key" ] || continue
+  # One keystroke, modifier included. A space would mean a two-keystroke
+  # sequence, which no device app in these guides can send.
   case "$key" in
-    "ctrl+x "?*) ;;
-    *) fail "config/keybindings.json: \"$key\" is not a ctrl+x chord"; continue ;;
+    *" "*)    fail "config/keybindings.json: \"$key\" is a two-keystroke sequence"; continue ;;
+    "alt+"?*) ;;
+    *)        fail "config/keybindings.json: \"$key\" is not an alt+ keystroke"; continue ;;
   esac
   if ! m=$(meaning_for_action "$action"); then
     fail "config/keybindings.json: action $action has no meaning in this script's table — add one"
     continue
   fi
-  CHORD_TRUTH="${CHORD_TRUTH}${key#ctrl+x }${TAB}${m}
+  BINDING_TRUTH="${BINDING_TRUTH}${key}${TAB}${m}
 "
 done < <(jq -r '.bindings[].bindings | to_entries[] | "\(.key)\t\(.value)"' "$KEYBINDINGS")
-CHORD_TRUTH=$(printf '%s' "$CHORD_TRUTH" | grep -v '^$' | sort)
+BINDING_TRUTH=$(printf '%s' "$BINDING_TRUTH" | grep -v '^$' | sort)
 
-if [ -z "$CHORD_TRUTH" ]; then
-  fail "config/keybindings.json: no ctrl+x bindings found"
+if [ -z "$BINDING_TRUTH" ]; then
+  fail "config/keybindings.json: no alt+ bindings found"
   echo "RESULT: FAILED"; exit 1
 fi
-pass "config/keybindings.json defines $(printf '%s\n' "$CHORD_TRUTH" | wc -l | tr -d ' ') chords"
+pass "config/keybindings.json defines $(printf '%s\n' "$BINDING_TRUTH" | wc -l | tr -d ' ') bindings"
 
 # ----------------------------------------------------------- extractors ----
 # Every extractor emits sorted "<key><TAB><meaning>" lines.
 #
 # All of them require the line to be a table row, so running prose that names a
-# chord (the README says "ctrl+x then [ is two keystrokes on any keyboard" in
-# the "It works without a macropad" section) is skipped rather than parsed:
-# prose has no meaning column to compare against.
+# binding (the README says "`alt+k` is Option held with K" under "Which one are
+# you?") is skipped rather than parsed: prose has no meaning column to compare
+# against.
+#
+# A binding cell is a backticked alt+<key>. That shape is what separates these
+# rows from the pass-through rows in the same tables, which this repo spells
+# opt+... throughout. Keep the two spellings distinct or the extractors below
+# start crossing over.
+BINDING_CELL='`alt[+][A-Za-z0-9]+`'
 
-# README.md chords: | `ctrl+x` then `a` | `action` | Context | Does |
-readme_chords() {
-  awk -F'|' -v t="$TAB" '/^\|/ && $2 ~ /`ctrl[+]x` then `/ {
+# README.md bindings: | `alt+a` | `action` | Context | Does |
+readme_bindings() {
+  awk -F'|' -v t="$TAB" -v re="$BINDING_CELL" '/^\|/ && NF==6 && $2 ~ re {
     k=$2; m=$5
-    sub(/.*`ctrl[+]x` then `/,"",k); sub(/`.*/,"",k)
+    gsub(/^[ \t]*`|`[ \t]*$/,"",k)
     gsub(/^[ \t]+|[ \t]+$/,"",m)
     print k t m
   }' "$README" | sort
 }
 
-# docs/work-louder-input.md carries chords in two tables of different widths:
-# the key grid  | Row | Column | Type | `ctrl+x` then `a` | Does |
-# and the dial  | Dial, clockwise | `ctrl+x` then `]` | Next chat |
+# docs/work-louder-input.md carries bindings in two tables of different widths:
+# the key grid  | Row | Column | Type | `alt+a` | Does |
+# and the dial  | Dial, clockwise | `alt+j` | Next chat |
 #
-# So rather than hardcode a column index, find whichever cell holds the chord
+# So rather than hardcode a column index, find whichever cell holds the binding
 # and take the cell after it as the meaning. Shape-agnostic, which means adding
 # a third table later does not silently drop out of coverage.
-work_louder_chords() {
-  awk -F'|' -v t="$TAB" '/^\|/ {
+work_louder_bindings() {
+  awk -F'|' -v t="$TAB" -v re="$BINDING_CELL" '/^\|/ {
     for (i = 2; i < NF; i++) {
-      if ($i ~ /`ctrl[+]x` then `/) {
+      if ($i ~ re) {
         k = $i; m = $(i + 1)
-        sub(/.*`ctrl[+]x` then `/, "", k); sub(/`.*/, "", k)
+        gsub(/^[ \t]*`|`[ \t]*$/, "", k)
         gsub(/^[ \t]+|[ \t]+$/, "", m)
         print k t m
         break
@@ -172,35 +197,46 @@ work_louder_chords() {
   }' "$WORK_LOUDER" | sort
 }
 
-# docs/stream-deck.md chords: | Does | `ctrl+x` | `a` |
-stream_deck_chords() {
-  awk -F'|' -v t="$TAB" '/^\|/ && NF==5 && $3 ~ /`ctrl[+]x`/ {
-    m=$2; k=$4
+# docs/stream-deck.md bindings: | Does | `alt+a` |
+stream_deck_bindings() {
+  awk -F'|' -v t="$TAB" -v re="$BINDING_CELL" '/^\|/ && NF==4 && $3 ~ re {
+    m=$2; k=$3
     gsub(/^[ \t]*`|`[ \t]*$/,"",k)
     gsub(/^[ \t]+|[ \t]+$/,"",m)
     print k t m
   }' "$STREAM_DECK" | sort
 }
 
-# docs/qmk-via.md chords: | M0 | `{KC_LCTL,KC_X}a` | Does |
-qmk_via_chords() {
-  awk -F'|' -v t="$TAB" '/^\|/ && $3 ~ /KC_LCTL,KC_X}/ {
-    k=$3; m=$4
-    sub(/.*KC_LCTL,KC_X}/,"",k); sub(/`.*/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
-    print k t m
-  }' "$QMK_VIA" | sort
+# docs/qmk-via.md bindings: | `LALT(KC_A)` | Does |, under "## Keycodes" only.
+# The pass-through table two sections down has the identical shape, so the
+# section boundary is what keeps them apart.
+qmk_via_bindings_raw() {
+  md_section "$QMK_VIA" "## Keycodes" \
+  | awk -F'|' -v t="$TAB" '/^\|/ && NF==4 && $2 ~ /`[A-Z]+[(]KC_[A-Z0-9_]+[)]`/ {
+      k=$2; m=$3
+      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
+      gsub(/^[ \t]+|[ \t]+$/,"",m)
+      print k t m
+    }'
+}
+
+qmk_via_bindings() {
+  local kc m
+  while IFS="$TAB" read -r kc m; do
+    [ -n "$kc" ] || continue
+    printf '%s%s%s\n' "$(key_for_binding_keycode "$kc")" "$TAB" "$m"
+  done < <(qmk_via_bindings_raw) | sort
 }
 
 # Pass-through rows are recognised by a backticked keystroke that carries a
 # modifier. Matching the shape rather than the expected list is deliberate: a
 # regression to `cmd+p` still gets extracted, and so gets reported as wrong
 # rather than silently skipped.
-CHORD_SHAPE='`(shift|ctrl|opt|alt|cmd|meta|super|gui)[+][A-Za-z0-9]+`'
+MODIFIED_KEY_SHAPE='`(shift|ctrl|opt|alt|cmd|meta|super|gui)[+][A-Za-z0-9]+`'
 
 # README.md pass-through: | `opt+p` | Model picker |
 readme_passthrough() {
-  awk -F'|' -v t="$TAB" -v re="$CHORD_SHAPE" '/^\|/ && NF==4 && $2 ~ re {
+  awk -F'|' -v t="$TAB" -v re="$MODIFIED_KEY_SHAPE" '/^\|/ && NF==4 && $2 ~ re {
     k=$2; m=$3
     gsub(/^[ \t]*`|`[ \t]*$/,"",k)
     gsub(/^[ \t]+|[ \t]+$/,"",m)
@@ -241,14 +277,16 @@ work_louder_passthrough() {
     ' | sort -u
 }
 
-# docs/qmk-via.md pass-through: | `LALT(KC_P)` | Model picker |
+# docs/qmk-via.md pass-through: | `LALT(KC_P)` | Model picker |, scoped to its
+# own section for the same reason the bindings extractor above is.
 qmk_via_passthrough_raw() {
-  awk -F'|' -v t="$TAB" '/^\|/ && NF==4 && $2 ~ /`[A-Z]+[(]KC_[A-Z0-9_]+[)]`/ {
-    k=$2; m=$3
-    gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
-    print k t m
-  }' "$QMK_VIA"
+  md_section "$QMK_VIA" "## Pass-through keys" \
+  | awk -F'|' -v t="$TAB" '/^\|/ && NF==4 && $2 ~ /`[A-Z]+[(]KC_[A-Z0-9_]+[)]`/ {
+      k=$2; m=$3
+      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
+      gsub(/^[ \t]+|[ \t]+$/,"",m)
+      print k t m
+    }'
 }
 
 qmk_via_passthrough() {
@@ -308,11 +346,11 @@ check_keyset() {
   fi
 }
 
-echo "-- chords"
-check_pairs "README.md chords"                 "$(readme_chords)"      "$CHORD_TRUTH"
-check_pairs "docs/work-louder-input.md chords" "$(work_louder_chords)" "$CHORD_TRUTH"
-check_pairs "docs/stream-deck.md chords"       "$(stream_deck_chords)" "$CHORD_TRUTH"
-check_pairs "docs/qmk-via.md chords"           "$(qmk_via_chords)"     "$CHORD_TRUTH"
+echo "-- bindings"
+check_pairs "README.md bindings"                 "$(readme_bindings)"      "$BINDING_TRUTH"
+check_pairs "docs/work-louder-input.md bindings" "$(work_louder_bindings)" "$BINDING_TRUTH"
+check_pairs "docs/stream-deck.md bindings"       "$(stream_deck_bindings)" "$BINDING_TRUTH"
+check_pairs "docs/qmk-via.md bindings"           "$(qmk_via_bindings)"     "$BINDING_TRUTH"
 
 echo "-- pass-through keys"
 check_pairs "README.md pass-through"                 "$(readme_passthrough)"      "$PASSTHROUGH_TRUTH"
@@ -328,21 +366,24 @@ KARA=$(awk '/^## Karabiner-Elements/{s=1} s' "$STREAM_DECK" \
 if [ -z "$KARA" ] || ! printf '%s' "$KARA" | jq empty 2>/dev/null; then
   fail "docs/stream-deck.md: could not parse the Karabiner manipulator as JSON"
 else
-  K_FIRST=$(printf '%s' "$KARA" | jq -r '.to[0].key_code // "?"')
+  K_EVENTS=$(printf '%s' "$KARA" | jq -r '.to | length')
+  K_CODE=$(printf '%s' "$KARA" | jq -r '.to[0].key_code // "?"')
   K_MODS=$(printf '%s' "$KARA" | jq -r '(.to[0].modifiers // []) | join(",")')
-  K_SECOND=$(printf '%s' "$KARA" | jq -r '.to[1].key_code // "?"')
 
-  if [ "$K_FIRST" != "x" ] || [ "$K_MODS" != "left_control" ]; then
-    fail "docs/stream-deck.md: Karabiner prefix is \"$K_MODS+$K_FIRST\", not left_control+x"
+  # One event, not two. The two-event form was this repo's old chord shape, and
+  # it is exactly what the device apps cannot send.
+  if [ "$K_EVENTS" != "1" ]; then
+    fail "docs/stream-deck.md: Karabiner \"to\" sends $K_EVENTS events, not one keystroke"
+  elif [ "$K_MODS" != "left_option" ]; then
+    fail "docs/stream-deck.md: Karabiner modifier is \"$K_MODS\", not left_option"
   else
-    pass "docs/stream-deck.md: Karabiner prefix is ctrl+x"
+    pass "docs/stream-deck.md: Karabiner sends one left_option keystroke"
   fi
 
-  K_KEY=$(key_for_karabiner "$K_SECOND")
-  if printf '%s\n' "$CHORD_TRUTH" | cut -f1 | grep -qxF -- "$K_KEY"; then
-    pass "docs/stream-deck.md: Karabiner second key \"$K_SECOND\" is the chord \"$K_KEY\""
+  if printf '%s\n' "$BINDING_TRUTH" | cut -f1 | grep -qxF -- "alt+$K_CODE"; then
+    pass "docs/stream-deck.md: Karabiner key \"$K_CODE\" is the binding \"alt+$K_CODE\""
   else
-    fail "docs/stream-deck.md: Karabiner second key \"$K_SECOND\" is not one of the documented chords"
+    fail "docs/stream-deck.md: Karabiner key \"$K_CODE\" is not one of the documented bindings"
   fi
 fi
 

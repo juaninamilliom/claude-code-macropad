@@ -108,24 +108,28 @@ done < <(jq -r '.bindings[].bindings | keys[]' "$FILE")
 if [ "$SEEN" -eq 0 ]; then
   fail "no keystrokes to check for bare-letter prefixes"
 else
-  pass "no bare-letter chord prefixes"
+  pass "no bare-letter keystrokes"
 fi
 
-# 9. Every binding sits under the mandated ctrl+x chord prefix. Without this,
-#    five valid, correctly-counted, whitelisted bindings under any other
-#    modifier would pass the whole suite.
+# 9. Every binding is one alt+<key> keystroke. Two things are checked at once,
+#    and both matter. The alt+ prefix, because five valid, correctly-counted,
+#    whitelisted bindings under any other modifier would otherwise pass the
+#    whole suite. And the absence of a space, because a space means a
+#    two-keystroke sequence — which Claude Code accepts but the Work Louder
+#    Input app cannot send, so it must not creep back in.
 SEEN=0
 while IFS= read -r key; do
   SEEN=$((SEEN + 1))
   case "$key" in
-    "ctrl+x "?*) ;;
-    *) fail "binding \"$key\" is not under the ctrl+x prefix" ;;
+    *" "*) fail "binding \"$key\" is a two-keystroke sequence; device apps cannot send one" ;;
+    "alt+"?*) ;;
+    *) fail "binding \"$key\" is not under the alt+ prefix" ;;
   esac
 done < <(jq -r '.bindings[].bindings | keys[]' "$FILE")
 if [ "$SEEN" -eq 0 ]; then
-  fail "no keystrokes to check for the ctrl+x prefix"
+  fail "no keystrokes to check for the alt+ prefix"
 else
-  pass "all bindings use the ctrl+x prefix"
+  pass "all bindings are single alt+ keystrokes"
 fi
 
 if [ "$FAILED" -eq 0 ]; then echo "RESULT: PASSED"; exit 0; fi

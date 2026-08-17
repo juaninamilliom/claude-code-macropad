@@ -44,13 +44,13 @@ if [ -f "$KB" ]; then
         if [ "${COUNT:-0}" -gt 0 ]; then
             ok "keybindings.json installed and valid (${COUNT} bindings)"
         else
-            bad "keybindings.json has no bindings" "Copy config/keybindings.json over it, or merge the five chords by hand."
+            bad "keybindings.json has no bindings" "Copy config/keybindings.json over it, or merge the five bindings by hand."
         fi
     else
         bad "keybindings.json is not valid JSON" "Run: bash tests/test-keybindings.sh $KB"
     fi
 else
-    bad "no ~/.claude/keybindings.json" "Copy config/keybindings.json there. Chords will not fire without it."
+    bad "no ~/.claude/keybindings.json" "Copy config/keybindings.json there. Bindings will not fire without it."
 fi
 
 SETTINGS="$HOME/.claude/settings.json"
@@ -92,7 +92,7 @@ echo "Vendor software"
 if pgrep -qf "input.app" 2>/dev/null; then
     ok "Work Louder Input is running"
 else
-    warn "Work Louder Input is not running" "Only needed to reprogram keys. Chords work without it."
+    warn "Work Louder Input is not running" "Only needed to reprogram keys. Bindings work without it."
 fi
 
 echo

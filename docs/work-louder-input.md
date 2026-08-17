@@ -31,12 +31,17 @@ pad still works as an ordinary keyboard; you simply cannot reprogram anything.
 ## Key assignments
 
 This layout assumes you want to drive Claude Code **without touching the
-keyboard**. Three assignment types appear:
+keyboard**. Two assignment types appear:
 
-- **Key** — a single key or combination, assigned normally. Passes a physical
-  hold straight through, which matters for voice.
-- **Chord** — a Multi Action sending two keystrokes *in sequence*.
+- **Key** — a single key or modifier combination, recorded on the Basic tab.
+  Passes a physical hold straight through, which matters for voice.
 - **Smart Action** — Input's app-launcher type (`APP_STEP`).
+
+Nothing here asks Input for a two-keystroke sequence, because it cannot send
+one: the **Multi** tab builds a multi-function key — tap, double-tap, hold,
+tap+hold — and the **Actions** tab records a *simultaneous* combination,
+modifiers and characters fired together. Every binding below is therefore a
+modifier held with one key, which the Basic tab records directly.
 
 ### Reading the grid
 
@@ -64,9 +69,9 @@ because the layer key is not part of the keymap.
 | Row | Column | Type | Sends | Does |
 | --- | --- | --- | --- | --- |
 | 0 | 1 | Smart Action | Launch `Claude.app` | Open Claude |
-| 0 | 2 | Chord | `ctrl+x` then `a` | Jump to session needing you |
-| 1 | 0 | Chord | `ctrl+x` then `n` | New chat |
-| 1 | 1 | Chord | `ctrl+x` then `s` | Toggle chat strip |
+| 0 | 2 | Key | `alt+a` | Jump to session needing you |
+| 1 | 0 | Key | `alt+n` | New chat |
+| 1 | 1 | Key | `alt+s` | Toggle chat strip |
 | 1 | 2 | Key | `ctrl+o` | Transcript |
 | 1 | 3 | Key | `ctrl+c` | Interrupt a running turn |
 | 2 | 0 | Key | `shift+tab` | Cycle permission mode |
@@ -75,6 +80,10 @@ because the layer key is not part of the keymap.
 | 2 | 3 | Key | `opt+o` | Fast mode |
 | 3 | **1 and 2** | Key | `Space` | Voice dictation, held — the fat key |
 | 3 | 3 | Key | `Enter` | Submit / proceed |
+
+`alt` and `opt` are the same Option key. The rows this repo binds are written
+`alt+…` to match `config/keybindings.json`; the pass-through rows keep the
+`opt+…` spelling. Record both with the Option key held.
 
 The bottom row is the core loop: hold the fat key and talk, release, press
 `Enter` beside it. Dictate and send, two adjacent keys.
@@ -90,8 +99,8 @@ so they get their own sections in Input.
 
 | Input | Assignment | Why |
 | --- | --- | --- |
-| Dial, counter-clockwise | `ctrl+x` then `[` | Previous chat |
-| Dial, clockwise | `ctrl+x` then `]` | Next chat |
+| Dial, counter-clockwise | `alt+k` | Previous chat |
+| Dial, clockwise | `alt+j` | Next chat |
 | Dial, press | `Escape` | Cancel, or decline a permission prompt |
 | Joystick, 4 sectors | `Up` `Down` `Left` `Right` | Navigate dialogs and select lists |
 
@@ -122,14 +131,14 @@ keystrokes you rarely want mid-flow:
 
 `opt` is Option, not Command. Claude Code spells these `alt+…`, the same modifier
 on macOS. If you do put one on a spare pad key, press Option when Input records
-it — Command produces a chord iTerm2 intercepts before Claude Code sees it.
+it — Command produces a combination iTerm2 intercepts before Claude Code sees it.
 
 ## The voice key is different
 
 Row 3's fat key must be a **plain `Space` key assignment, not a macro and not a
-chord.** Hold-to-talk is defined by its release: you hold the key, speak, and
-release to end. A macro fires and completes; it cannot be held. Assign `Space`
-as an ordinary key so the physical hold passes straight through.
+Multi Action.** Hold-to-talk is defined by its release: you hold the key, speak,
+and release to end. A macro fires and completes; it cannot be held. Assign
+`Space` as an ordinary key so the physical hold passes straight through.
 
 Held keys do work on this pad — a modifier such as `KC_LSFT` assigned to a pad
 key behaves as a real held modifier, which is the same mechanism voice relies on.
@@ -140,20 +149,20 @@ key behaves as a real held modifier, which is the same mechanism voice relies on
    [Getting the Input app](#getting-the-input-app) if you do not have it).
 2. Select the **Default** profile. Add a new layer and name it `Claude Code`.
 3. For each **Key** row: click the key in the layout, choose the keyboard shortcut
-   assignment, and press the combination.
-4. For each **Chord** row: click the key, choose **Multi Action**, and add two
-   steps — first `ctrl+x`, then the second key on its own. Order matters.
-5. For the **Smart Action** row: choose Smart Action, pick the app type, and point
+   assignment on the **Basic** tab, and press the combination with the modifier
+   held.
+4. For the **Smart Action** row: choose Smart Action, pick the app type, and point
    it at `/Applications/Claude.app`.
-6. Row 3's fat key: assign `Space` to both of its slots.
-7. Set the encoder's three actions.
-8. Sync to the device.
-9. Optional: under linked apps, link this layer to iTerm and Claude, so the chords
+5. Row 3's fat key: assign `Space` to both of its slots.
+6. Set the encoder's three actions.
+7. Sync to the device.
+8. Optional: under linked apps, link this layer to iTerm and Claude, so the keys
    only fire where they mean something.
 
 ## Verifying
 
 Open Claude Code and press each key once, top to bottom, against the table above.
-If a chord types raw text instead of acting, the Multi Action is sending both
-keystrokes simultaneously rather than in sequence — rebuild it as two ordered
-steps.
+If a key types a bare character — `å` for `alt+a` — Option reached the terminal
+as a compose key rather than a modifier. Set iTerm2's Profiles → Keys → Left
+Option key to `Esc+`. If it types nothing at all, Input recorded the key without
+its modifier: re-record it with Option held.
