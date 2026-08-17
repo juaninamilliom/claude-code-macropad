@@ -197,19 +197,37 @@ readme_passthrough() {
   }' "$README" | sort
 }
 
-# docs/work-louder-input.md pass-through: | 2 | 2 | Key | `opt+p` | Model picker |
-# The Type column separates these from the chord rows, which share the row
-# shape and whose `ctrl+x` half also looks like a modified keystroke.
+# docs/work-louder-input.md holds pass-through keys in two tables now: the
+# 5-column layout table for the two that earned a pad key, and a 2-column table
+# for the five deliberately left on the keyboard. Gather both.
+#
+# Then keep only keys the truth set names. The layout table also carries
+# pad-specific keys — Escape, ctrl+c, Space, Enter — which are not pass-through
+# bindings at all, and ctrl+c matches the modified-keystroke shape, so filtering
+# by the truth keys rather than by shape is what keeps this exact.
 work_louder_passthrough() {
-  awk -F'|' -v t="$TAB" -v re="$CHORD_SHAPE" '
-  /^\|/ && NF==7 && $5 ~ re {
-    type=$4; gsub(/^[ \t]+|[ \t]+$/,"",type)
-    if (type != "Key") next
-    k=$5; m=$6
-    gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
-    print k t m
-  }' "$WORK_LOUDER" | sort
+  truth_keys=$(printf '%s\n' "$PASSTHROUGH_TRUTH" | cut -f1 | tr '\n' ' ')
+  {
+    awk -F'|' -v t="$TAB" '
+    /^\|/ && NF==7 {
+      type=$4; gsub(/^[ \t]+|[ \t]+$/,"",type)
+      if (type != "Key") next
+      k=$5; m=$6
+      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
+      gsub(/^[ \t]+|[ \t]+$/,"",m)
+      print k t m
+    }' "$WORK_LOUDER"
+    awk -F'|' -v t="$TAB" '
+    /^\|/ && NF==4 {
+      k=$2; m=$3
+      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
+      gsub(/^[ \t]+|[ \t]+$/,"",m)
+      print k t m
+    }' "$WORK_LOUDER"
+  } | awk -F"$TAB" -v keys="$truth_keys" '
+      BEGIN { n = split(keys, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
+      $1 in want { print }
+    ' | sort -u
 }
 
 # docs/qmk-via.md pass-through: | `LALT(KC_P)` | Model picker |
