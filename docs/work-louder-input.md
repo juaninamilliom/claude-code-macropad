@@ -155,33 +155,46 @@ so they get their own sections in Input.
 
 | Input | Assignment | Why |
 | --- | --- | --- |
-| Dial, counter-clockwise | `Up` | Scroll the transcript, or step back through prompt history |
-| Dial, clockwise | `Down` | Scroll forward, or step forward through prompt history |
+| Dial, counter-clockwise | `Up` | Previous option, previous prompt, scroll back a line |
+| Dial, clockwise | `Down` | Next option, next prompt, scroll forward a line |
 | Dial, press | `Escape` | Cancel, or decline a permission prompt |
-| Joystick, up | `ctrl+Up` | Mission Control |
-| Joystick, down | `ctrl+Down` | Show all windows of the front app |
+| Joystick, up | `PageUp` | Scroll back a page |
+| Joystick, down | `PageDown` | Scroll forward a page |
 | Joystick, left | `Left` | Move the cursor, or move within a dialog |
 | Joystick, right | `Right` | Move the cursor, or move within a dialog |
 
-Rotating is for reading, pointing is for moving. The dial needs no binding at
-all — `Up`/`Down` already mean scroll in the transcript and prompt history in the
-chat, so one mapping is right in both places, and long output in a terminal
-scrolls under your thumb.
+**Put `Up`/`Down` on the dial, not `PageUp`/`PageDown`.** They are not two
+speeds of the same thing, and the difference is the single easiest mistake to
+make here:
 
-**The joystick's vertical axis targets the operating system, not Claude Code.**
-It suits running one terminal window per worktree: `ctrl+Up` is Mission Control
-and `ctrl+Down` shows every window of the front app. Those get you *to* a window
-when you want to choose one by eye; the jump key gets you to the right one
-without looking.
+| Sends | In the chat input | In an option list | In the transcript |
+| --- | --- | --- | --- |
+| `Up` / `Down` | prompt history | **moves the selection** | scrolls a line |
+| `PageUp` / `PageDown` | nothing | **nothing** | scrolls a page |
 
-macOS intercepts both before any application sees them. Claude Code does bind
-`ctrl+up` and `ctrl+down` — `app:diffFileListUp`/`Down` — but the system
-shortcuts win whenever Mission Control is at its defaults, which is every Mac out
-of the box. So this costs you nothing that was reachable anyway.
+Claude Code binds `up` and `down` in every context that has a list —
+`confirm:previous`/`next` for permission prompts, `select:previous`/`next` for
+the model picker and settings, `autocomplete:previous`/`next` for the command
+menu. It binds `pageup` and `pagedown` only in its scrolling contexts. So a dial
+set to `PageUp` scrolls output perfectly well and can never choose an option,
+which is a confusing thing to debug: the dial obviously works, and yet the one
+moment you need it — a permission prompt with three choices — it does nothing.
 
-Arrow keys on the horizontal axis matter more than they look: permission
-prompts, the model picker, and every select list are driven by arrows, so
-without them a pad-only workflow stalls at the first dialog.
+Rotating is therefore for choosing, and pointing is for reading. Putting the
+page keys on the joystick's vertical axis gets you both without giving anything
+up.
+
+Arrow keys matter more than they look: permission prompts, the model picker, and
+every select list are driven by arrows, so without them a pad-only workflow
+stalls at the first dialog.
+
+**This costs Mission Control**, which is the other reasonable use for the
+joystick's vertical axis: `ctrl+Up` and `ctrl+Down` show all windows and all
+windows of the front app, and macOS intercepts both before any application sees
+them. That was worth a key back when moving between session windows meant
+finding them by eye. The jump key does that job now, without looking, so the
+page keys are the better tenant. If you would rather have Mission Control, swap
+them back — just leave `Up`/`Down` on the dial.
 
 The joystick is radial, defined by angle ranges rather than named directions.
 Assign the four directional sectors to the arrows that match what Input shows for

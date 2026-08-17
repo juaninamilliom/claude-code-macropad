@@ -47,6 +47,12 @@ through. Run `/voice hold` once in a terminal to switch voice on.
 `KC_LEFT` and `KC_RIGHT` are worth a key each if you have them spare: permission
 prompts and the model picker are driven by arrows.
 
+**Not `KC_PGUP` / `KC_PGDN` on the encoder.** Claude Code binds `up` and `down`
+in every context that has a list — permission prompts, the model picker, the
+command menu, prompt history — and binds the page keys only in its scrolling
+contexts. An encoder set to page keys scrolls output fine and can never choose
+an option. Put the page keys on a second axis if you have one.
+
 ## Jumping to the session that wants you
 
 This one is not a keycode. Claude Code has no working action for "go to the
