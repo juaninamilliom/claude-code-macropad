@@ -1,0 +1,21 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-keybindings.json",
+  "$docs": "https://code.claude.com/docs/en/keybindings",
+  "bindings": [
+    {
+      "context": "Global",
+      "bindings": {
+        "ctrl+x [": "strip:previous",
+        "ctrl+x ]": "strip:next",
+        "ctrl+x n": "strip:new",
+        "ctrl+x s": "strip:toggle"
+      }
+    },
+    {
+      "context": "Chat",
+      "bindings": {
+        "ctrl+x a": "chat:attentionDown"
+      }
+    }
+  ]
+}
