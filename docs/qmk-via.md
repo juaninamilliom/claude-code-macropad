@@ -1,22 +1,23 @@
 # QMK / VIA macropads
 
-Any VIA-compatible board can send these chords. VIA's macro editor records
-sequences directly.
+Any VIA-compatible board can send these bindings. Each is one modified
+keystroke, so they are plain keycodes — the **Macros** tab is not involved.
 
-## Macros
+## Keycodes
 
-In VIA's **Macros** tab, define five macros. VIA macro syntax uses `{}` for
-held-then-released groups:
+Assign these in the **Keymap** tab, one key each:
 
-| Macro | Content | Does |
-| --- | --- | --- |
-| M0 | `{KC_LCTL,KC_X}a` | Jump to session needing you |
-| M1 | `{KC_LCTL,KC_X}[` | Previous chat |
-| M2 | `{KC_LCTL,KC_X}]` | Next chat |
-| M3 | `{KC_LCTL,KC_X}n` | New chat |
-| M4 | `{KC_LCTL,KC_X}s` | Toggle chat strip |
+| Keycode | Does |
+| --- | --- |
+| `LALT(KC_A)` | Jump to session needing you |
+| `LALT(KC_K)` | Previous chat |
+| `LALT(KC_J)` | Next chat |
+| `LALT(KC_N)` | New chat |
+| `LALT(KC_S)` | Toggle chat strip |
 
-Assign M0–M4 to keys in the **Keymap** tab.
+`LALT` is Option on macOS, which is what Claude Code means by `alt+a` and the
+rest. `LGUI` sends Command instead, and your terminal acts on most Command
+keystrokes itself.
 
 ## The voice key
 
@@ -26,7 +27,7 @@ through.
 
 ## Pass-through keys
 
-These need no macro and no entry in `keybindings.json`:
+Claude Code binds these itself, so they need no entry in `keybindings.json`:
 
 | Keycode | Does |
 | --- | --- |

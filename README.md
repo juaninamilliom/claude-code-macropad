@@ -6,9 +6,9 @@ Drive Claude Code from a macropad — or from any keyboard.
 
 Claude Code ships several useful actions bound to no key at all: session-strip
 navigation, jump-to-the-session-that-wants-attention, new session. This repo
-binds five of them to chords, adds desktop notifications that name the project
-so you can tell concurrent sessions apart, and documents how to put the result
-on a physical key.
+binds five of them to `alt+` keystrokes, adds desktop notifications that name
+the project so you can tell concurrent sessions apart, and documents how to put
+the result on a physical key.
 
 | Path | What it is |
 | --- | --- |
@@ -31,9 +31,9 @@ Both paths install the same two files. They differ only in what presses the keys
 device's guide. You get labeled, eyes-free keys for actions that otherwise have
 no key at all. Start here: [with a macropad](#path-a--with-a-macropad).
 
-**B — You do not.** Install below and you are done. Every chord is typeable —
-`ctrl+x` then `[` is two keystrokes on any keyboard — and you can also bind them
-to spare function keys. See [keyboard only](#path-b--keyboard-only).
+**B — You do not.** Install below and you are done. Every binding is one
+keystroke any keyboard sends — `alt+k` is Option held with K — and you can also
+put them on spare function keys. See [keyboard only](#path-b--keyboard-only).
 
 Two limits worth knowing before either path: **nothing here can light up a pad's
 LEDs**, and **no guide here can program your pad for you** — every device is
@@ -47,7 +47,7 @@ configuration installed once applies to both. What differs is voice.
 
 | | Terminal | Desktop app |
 | --- | --- | --- |
-| Keybindings and chords | yes | not yet verified |
+| Keybindings | yes | not yet verified |
 | Notification hooks | yes | yes — `settings.json` is shared |
 | Turning voice **on** (`/voice hold`) | **yes, only here** | no — the command refuses with *"Run it from the Claude Code terminal instead"* |
 | Using voice once enabled | yes | not yet verified |
@@ -142,26 +142,28 @@ entirely in your device's own app.
 | Your device | Guide |
 | --- | --- |
 | Work Louder Creator Micro 2 | [`docs/work-louder-input.md`](docs/work-louder-input.md) — key by key, in the Input app |
-| Any VIA-compatible board | [`docs/qmk-via.md`](docs/qmk-via.md) — VIA's macro editor |
+| Any VIA-compatible board | [`docs/qmk-via.md`](docs/qmk-via.md) — VIA's keymap editor |
 | Stream Deck, Karabiner | [`docs/stream-deck.md`](docs/stream-deck.md) |
 
 Budget about fifteen minutes of clicking. Each guide gives you a table of what
-every key sends, and the three assignment types that matter: a plain **Key** for
-things like `Space`, a **Multi Action** for the two-keystroke chords, and a
-**Smart Action** if your app has one, for launching Claude.
+every key sends, and the two assignment types that matter: a plain **Key** for
+everything this repo binds, `Space` included, and a **Smart Action** if your app
+has one, for launching Claude.
 
 The layout is built so the whole loop works without touching the keyboard: hold
 the big key to dictate, release, press the key beside it to send. Escape declines
-a permission prompt, `ctrl+c` stops a runaway turn, and the dial cycles sessions.
+a permission prompt, `ctrl+c` stops a runaway turn, the dial scrolls long output,
+and the joystick moves between sessions and terminal windows.
 
 ## Path B — keyboard only
 
-You are already done. The five chords work as typed keystrokes — `ctrl+x`,
-release, then the second key. See [Chords](#chords) for what they do.
+You are already done. The five bindings are ordinary Option-key combinations you
+can type. See [Bindings](#bindings) for what they do.
 
-If you would rather have single keys, map spare function keys to the chords with
-Karabiner-Elements. [`docs/stream-deck.md`](docs/stream-deck.md) has a working
-manipulator for exactly that, including where it nests in `karabiner.json`.
+If you would rather have single unmodified keys, map spare function keys to the
+bindings with Karabiner-Elements. [`docs/stream-deck.md`](docs/stream-deck.md)
+has a working manipulator for exactly that, including where it nests in
+`karabiner.json`.
 
 Voice needs no binding at all: hold `Space` with the input empty, after running
 `/voice hold` once in a terminal.
@@ -211,18 +213,26 @@ the one-liner, the pre-existing `Stop` hook was gone.
 
 If you are tempted to simplify that command, this is the reason not to.
 
-## Chords
+## Bindings
 
-A chord is two keystrokes **in sequence**, not a combination held at once:
-press `ctrl+x`, release, then press the second key.
+Each one is a single keystroke: Option held with one letter, pressed together.
 
-| Chord | Action | Context | Does |
+| Keystroke | Action | Context | Does |
 | --- | --- | --- | --- |
-| `ctrl+x` then `a` | `chat:attentionDown` | Chat | Jump to session needing you |
-| `ctrl+x` then `[` | `strip:previous` | Global | Previous chat |
-| `ctrl+x` then `]` | `strip:next` | Global | Next chat |
-| `ctrl+x` then `n` | `strip:new` | Global | New chat |
-| `ctrl+x` then `s` | `strip:toggle` | Global | Toggle chat strip |
+| `alt+a` | `chat:attentionDown` | Chat | Jump to session needing you |
+| `alt+k` | `strip:previous` | Global | Previous chat |
+| `alt+j` | `strip:next` | Global | Next chat |
+| `alt+n` | `strip:new` | Global | New chat |
+| `alt+s` | `strip:toggle` | Global | Toggle chat strip |
+
+`alt` is the Option key — the same modifier the pass-through table below spells
+`opt`. These five are written `alt+…` because that is the spelling
+`config/keybindings.json` uses.
+
+Option is where the free space is. Claude Code 2.1.233 has bound `ctrl+` to
+nearly every letter, while its `alt+` defaults reach only `o p t v w`, `down`,
+`f4` and `tab` — so `a k j n s` are unclaimed. `j` and `k` are vim's next and
+previous, which gives a dial's two rotation directions a mnemonic.
 
 That is the whole of `config/keybindings.json`. `tests/test-keybindings.sh`
 checks the file against snapshots of contexts and actions that this repo
@@ -234,21 +244,23 @@ a legitimate binding the check calls unknown, extend `VALID_ACTIONS` in the
 script. Neither snapshot is read from Claude Code, so this catches your typos
 but not an upstream rename.
 
-If you have rebound tmux's or screen's prefix to `ctrl+x`, change the prefix in
-`config/keybindings.json` and in your device configuration. The two must match.
+Your terminal has to pass Option through as a modifier rather than composing a
+character with it. In iTerm2 that is Profiles → Keys → Left Option key set to
+`Esc+`; on the default `Normal`, Option-A types `å` and Claude Code never sees a
+binding. The pass-through keys below need the same setting, so if `opt+p` opens
+the model picker for you, these five will fire too.
 
 ### Voice gets a pad key too
 
 Dictation belongs on the pad like everything else — ideally the biggest key you
-have, since you hold it while you talk. It is simply the one key that is **not** a
-chord: assign it plain `Space`.
+have, since you hold it while you talk. It is the one key that carries no
+modifier and no binding: assign it plain `Space`.
 
 That is a mechanical requirement, not a shortcut. Hold-to-talk is defined by the
-*release*: you hold, speak, and let go to end the utterance. A macro or a Multi
-Action fires and completes instantly, so it can never be held. A plain `Space`
-key assignment passes your physical hold straight through. Nothing goes in
-`keybindings.json` — `voice:pushToTalk` is already bound to `Space` in the `Chat`
-context.
+*release*: you hold, speak, and let go to end the utterance. A macro fires and
+completes instantly, so it can never be held. A plain `Space` key assignment
+passes your physical hold straight through. Nothing goes in `keybindings.json` —
+`voice:pushToTalk` is already bound to `Space` in the `Chat` context.
 
 **Turn it on first.** Run `/voice hold` inside Claude Code, in a terminal. Until
 you do, holding the key types spaces and nothing tells you why.
@@ -309,16 +321,17 @@ Claude Code **2.1.233**, on macOS.
 Be precise about what that covers, because no key on this page has been pressed
 on a macropad. Verified from software: `config/keybindings.json` validates, the
 step 2 merge preserves pre-existing hooks, the hook fires and names the project,
-and every context, action, and pass-through chord named here exists in the
-2.1.233 binary with the modifier shown. Still unverified, because it needs
-hardware: the five chords arriving from a physical pad, and whether `strip:*`
-genuinely binds in `Global` rather than only where the chat input has focus. If
-you own a pad and find out, an issue would be welcome.
+every context, action, and pass-through keystroke named here exists in the
+2.1.233 binary with the modifier shown, and the five `alt+` keystrokes this repo
+claims collide with nothing that release binds. Still unverified, because it
+needs hardware: the five keystrokes arriving from a physical pad, and whether
+`strip:*` genuinely binds in `Global` rather than only where the chat input has
+focus. If you own a pad and find out, an issue would be welcome.
 
 The notification hook is macOS-only: it shells out to `osascript`. The
 keybindings themselves have no platform dependency.
 
-`strip:*` and `chat:attention*` have no default bindings. If a chord stops
+`strip:*` and `chat:attention*` have no default bindings. If a binding stops
 firing after a Claude Code update, validate your installed file first — not the
 repo's copy, which always passes in a clean clone:
 
@@ -362,7 +375,7 @@ directly into the computer with a data cable.
 
 [`docs/troubleshooting.md`](docs/troubleshooting.md) covers the rest — the
 failures that actually came up building this: holding `Space` types spaces,
-`/voice` missing entirely, a chord that types raw characters instead of acting,
+`/voice` missing entirely, a binding that types a character instead of acting,
 hooks that never fire, and notifications that do not say which project they came
 from.
 
@@ -376,7 +389,7 @@ bash tests/test-docs-consistency.sh
 
 They validate, in order: that every binding in `config/keybindings.json` uses a
 context and an action from the repo's snapshot lists; that the notification hook
-names the project from the hook payload and exits 0; and that the chord and
+names the project from the hook payload and exits 0; and that the binding and
 pass-through tables in this README and in all three device guides still agree,
 key and meaning, with `config/keybindings.json`.
 

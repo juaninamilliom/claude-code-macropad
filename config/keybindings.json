@@ -5,16 +5,16 @@
     {
       "context": "Global",
       "bindings": {
-        "ctrl+x [": "strip:previous",
-        "ctrl+x ]": "strip:next",
-        "ctrl+x n": "strip:new",
-        "ctrl+x s": "strip:toggle"
+        "alt+k": "strip:previous",
+        "alt+j": "strip:next",
+        "alt+n": "strip:new",
+        "alt+s": "strip:toggle"
       }
     },
     {
       "context": "Chat",
       "bindings": {
-        "ctrl+x a": "chat:attentionDown"
+        "alt+a": "chat:attentionDown"
       }
     }
   ]
