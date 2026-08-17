@@ -8,11 +8,11 @@ record the modifier and the key together.
 
 | Button | Sends |
 | --- | --- |
-| Jump to session needing you | `alt+a` |
-| Previous chat | `alt+k` |
-| Next chat | `alt+j` |
-| New chat | `alt+n` |
-| Toggle chat strip | `alt+s` |
+| Jump to session needing you | `opt+a` |
+| Previous chat | `opt+k` |
+| Next chat | `opt+j` |
+| New chat | `opt+n` |
+| Toggle chat strip | `opt+s` |
 
 `alt` is Option; the Hotkey recorder shows it as ⌥.
 

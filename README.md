@@ -6,7 +6,7 @@ Drive Claude Code from a macropad — or from any keyboard.
 
 Claude Code ships several useful actions bound to no key at all: session-strip
 navigation, jump-to-the-session-that-wants-attention, new session. This repo
-binds five of them to `alt+` keystrokes, adds desktop notifications that name
+binds five of them to Option-key shortcuts, adds desktop notifications that name
 the project so you can tell concurrent sessions apart, and documents how to put
 the result on a physical key.
 
@@ -32,7 +32,7 @@ device's guide. You get labeled, eyes-free keys for actions that otherwise have
 no key at all. Start here: [with a macropad](#path-a--with-a-macropad).
 
 **B — You do not.** Install below and you are done. Every binding is one
-keystroke any keyboard sends — `alt+k` is Option held with K — and you can also
+keystroke any keyboard sends — `opt+k` is Option held with K — and you can also
 put them on spare function keys. See [keyboard only](#path-b--keyboard-only).
 
 Two limits worth knowing before either path: **nothing here can light up a pad's
@@ -219,18 +219,21 @@ Each one is a single keystroke: Option held with one letter, pressed together.
 
 | Keystroke | Action | Context | Does |
 | --- | --- | --- | --- |
-| `alt+a` | `chat:attentionDown` | Chat | Jump to session needing you |
-| `alt+k` | `strip:previous` | Global | Previous chat |
-| `alt+j` | `strip:next` | Global | Next chat |
-| `alt+n` | `strip:new` | Global | New chat |
-| `alt+s` | `strip:toggle` | Global | Toggle chat strip |
+| `opt+a` | `chat:attentionDown` | Chat | Jump to session needing you |
+| `opt+k` | `strip:previous` | Global | Previous chat |
+| `opt+j` | `strip:next` | Global | Next chat |
+| `opt+n` | `strip:new` | Global | New chat |
+| `opt+s` | `strip:toggle` | Global | Toggle chat strip |
 
-`alt` is the Option key — the same modifier the pass-through table below spells
-`opt`. These five are written `alt+…` because that is the spelling
-`config/keybindings.json` uses.
+`opt` is the Option key. Every table in this repo spells it `opt`, which is what
+device configurators label the button — there is usually no `alt` key to click.
+
+**`config/keybindings.json` spells the same modifier `alt+`**, because that is
+what Claude Code's configuration format requires. Same key, two names, and the
+config file is the only place you will meet the second one.
 
 Option is where the free space is. Claude Code 2.1.233 has bound `ctrl+` to
-nearly every letter, while its `alt+` defaults reach only `o p t v w`, `down`,
+nearly every letter, while its Option defaults reach only `o p t v w`, `down`,
 `f4` and `tab` — so `a k j n s` are unclaimed. `j` and `k` are vim's next and
 previous, which gives a dial's two rotation directions a mnemonic.
 
@@ -322,7 +325,7 @@ Be precise about what that covers, because no key on this page has been pressed
 on a macropad. Verified from software: `config/keybindings.json` validates, the
 step 2 merge preserves pre-existing hooks, the hook fires and names the project,
 every context, action, and pass-through keystroke named here exists in the
-2.1.233 binary with the modifier shown, and the five `alt+` keystrokes this repo
+2.1.233 binary with the modifier shown, and the five Option shortcuts this repo
 claims collide with nothing that release binds. Still unverified, because it
 needs hardware: the five keystrokes arriving from a physical pad, and whether
 `strip:*` genuinely binds in `Global` rather than only where the chat input has
