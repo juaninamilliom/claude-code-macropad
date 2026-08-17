@@ -17,6 +17,7 @@ on a physical key.
 | `hooks/notify-ready.sh` | macOS notification naming the project, on `Stop` and `Notification`. |
 | `docs/` | Per-device setup guides and troubleshooting. |
 | `tests/` | `test-keybindings.sh`, `test-notify-ready.sh`, `test-docs-consistency.sh`. |
+| `scripts/doctor.sh` | Read-only health check across the whole chain, hardware to config. |
 
 The two config files are shaped differently on purpose. `keybindings.json` is a
 complete file you can copy over; `settings.json` holds configuration this repo
@@ -287,10 +288,27 @@ headless run produces a debug log with no keybinding lines in it at all.
 
 ## Troubleshooting
 
-[`docs/troubleshooting.md`](docs/troubleshooting.md) covers the failures that
-actually came up building this: holding `Space` types spaces, `/voice` missing
-entirely, a chord that types raw characters instead of acting, hooks that never
-fire, and notifications that do not say which project they came from.
+Start here:
+
+```bash
+bash scripts/doctor.sh
+```
+
+It checks the whole chain — pad on the HID bus, keybindings installed and valid,
+hooks wired, each hook script actually present and executable, voice enabled —
+and names the next action for whatever is broken. Read-only; it changes nothing.
+Exit code is non-zero if anything failed, so it also works in a shell alias.
+
+The one distinction it draws that saves the most time: if the pad is missing from
+the HID bus, the fault is a cable, a port, or a hub — not configuration. A hub
+chain that re-enumerates when you undock is the usual cause. Plug the pad
+directly into the computer with a data cable.
+
+[`docs/troubleshooting.md`](docs/troubleshooting.md) covers the rest — the
+failures that actually came up building this: holding `Space` types spaces,
+`/voice` missing entirely, a chord that types raw characters instead of acting,
+hooks that never fire, and notifications that do not say which project they came
+from.
 
 ## Tests
 
