@@ -69,9 +69,9 @@ because the layer key is not part of the keymap.
 | Row | Column | Type | Sends | Does |
 | --- | --- | --- | --- | --- |
 | 0 | 1 | Smart Action | Launch `Claude.app` | Open Claude |
-| 0 | 2 | Key | `alt+a` | Jump to session needing you |
-| 1 | 0 | Key | `alt+n` | New chat |
-| 1 | 1 | Key | `alt+s` | Toggle chat strip |
+| 0 | 2 | Key | `opt+a` | Jump to session needing you |
+| 1 | 0 | Key | `opt+n` | New chat |
+| 1 | 1 | Key | `opt+s` | Toggle chat strip |
 | 1 | 2 | Key | `ctrl+o` | Transcript |
 | 1 | 3 | Key | `ctrl+c` | Interrupt a running turn |
 | 2 | 0 | Key | `shift+tab` | Cycle permission mode |
@@ -81,9 +81,14 @@ because the layer key is not part of the keymap.
 | 3 | **1 and 2** | Key | `Space` | Voice dictation, held — the fat key |
 | 3 | 3 | Key | `Enter` | Submit / proceed |
 
-`alt` and `opt` are the same Option key. The rows this repo binds are written
-`alt+…` to match `config/keybindings.json`; the pass-through rows keep the
-`opt+…` spelling. Record both with the Option key held.
+Every modifier above is spelled the way Input spells it, so what you read here is
+what you click. `opt` is the Option key — the button labelled `opt` in Input's
+modifier palette. There is no `alt` button; it is the same key under a different
+name.
+
+You will see `alt+…` inside `config/keybindings.json`, because that is the
+spelling Claude Code's configuration format requires. Same modifier, same
+physical key. Nothing you type into Input ever says `alt`.
 
 The bottom row is the core loop: hold the fat key and talk, release, press
 `Enter` beside it. Dictate and send, two adjacent keys.
@@ -104,8 +109,8 @@ so they get their own sections in Input.
 | Dial, press | `Escape` | Cancel, or decline a permission prompt |
 | Joystick, up | `ctrl+Up` | Mission Control |
 | Joystick, down | `ctrl+Down` | Show all windows of the front app |
-| Joystick, left | `alt+k` | Previous chat |
-| Joystick, right | `alt+j` | Next chat |
+| Joystick, left | `opt+k` | Previous chat |
+| Joystick, right | `opt+j` | Next chat |
 
 Rotating is for reading, pointing is for moving. The dial needs no binding at
 all — `Up`/`Down` already mean scroll in the transcript and prompt history in the
@@ -185,7 +190,7 @@ key behaves as a real held modifier, which is the same mechanism voice relies on
 ## Verifying
 
 Open Claude Code and press each key once, top to bottom, against the table above.
-If a key types a bare character — `å` for `alt+a` — Option reached the terminal
+If a key types a bare character — `å` for `opt+a` — Option reached the terminal
 as a compose key rather than a modifier. Set iTerm2's Profiles → Keys → Left
 Option key to `Esc+`. If it types nothing at all, Input recorded the key without
 its modifier: re-record it with Option held.

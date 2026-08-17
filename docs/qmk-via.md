@@ -15,7 +15,7 @@ Assign these in the **Keymap** tab, one key each:
 | `LALT(KC_N)` | New chat |
 | `LALT(KC_S)` | Toggle chat strip |
 
-`LALT` is Option on macOS, which is what Claude Code means by `alt+a` and the
+`LALT` is Option on macOS, which is what Claude Code means by `opt+a` and the
 rest. `LGUI` sends Command instead, and your terminal acts on most Command
 keystrokes itself.
 

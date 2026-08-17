@@ -101,7 +101,7 @@ key_for_binding_keycode() {
   case "$kc" in
     "LALT(KC_"?")")
       inner="${kc#LALT(KC_}"; inner="${inner%)}"
-      printf 'alt+%s\n' "$(printf '%s' "$inner" | tr 'A-Z' 'a-z')" ;;
+      printf 'opt+%s\n' "$(printf '%s' "$inner" | tr 'A-Z' 'a-z')" ;;
     *) printf '%s\n' "$kc" ;;
   esac
 }
@@ -141,7 +141,11 @@ while IFS="$TAB" read -r key action; do
     fail "config/keybindings.json: action $action has no meaning in this script's table — add one"
     continue
   fi
-  BINDING_TRUTH="${BINDING_TRUTH}${key}${TAB}${m}
+  # The config must say alt+ (Claude Code's format). Every doc says opt+, which
+  # is what device configurators label the button — there is usually no `alt`
+  # key to click. Translate here so the comparison is apples to apples, and so
+  # the docs never have to carry a spelling their reader cannot find on screen.
+  BINDING_TRUTH="${BINDING_TRUTH}opt+${key#alt+}${TAB}${m}
 "
 done < <(jq -r '.bindings[].bindings | to_entries[] | "\(.key)\t\(.value)"' "$KEYBINDINGS")
 BINDING_TRUTH=$(printf '%s' "$BINDING_TRUTH" | grep -v '^$' | sort)
@@ -151,6 +155,23 @@ if [ -z "$BINDING_TRUTH" ]; then
   echo "RESULT: FAILED"; exit 1
 fi
 pass "config/keybindings.json defines $(printf '%s\n' "$BINDING_TRUTH" | wc -l | tr -d ' ') bindings"
+
+BINDING_KEYS=$(printf '%s\n' "$BINDING_TRUTH" | cut -f1 | tr '\n' ' ')
+PASSTHROUGH_KEYS=$(printf '%s\n' "$PASSTHROUGH_TRUTH" | cut -f1 | tr '\n' ' ')
+
+# This repo's bindings and the pass-through keys are both opt+ cells, often in
+# the same table, so each check keeps only the keys it owns.
+#
+# Filtering by the truth's key set rather than by spelling is what makes this
+# safe: a key that is missing from a doc is still missing from the filtered set,
+# so check_pairs still fails. Only rows belonging to the *other* check are
+# dropped, and those are covered by their own assertion.
+only_keys() {
+  awk -F"$TAB" -v keys="$1" '
+    BEGIN { n = split(keys, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
+    $1 in want { print }
+  '
+}
 
 # ----------------------------------------------------------- extractors ----
 # Every extractor emits sorted "<key><TAB><meaning>" lines.
@@ -164,7 +185,13 @@ pass "config/keybindings.json defines $(printf '%s\n' "$BINDING_TRUTH" | wc -l |
 # rows from the pass-through rows in the same tables, which this repo spells
 # opt+... throughout. Keep the two spellings distinct or the extractors below
 # start crossing over.
-BINDING_CELL='`alt[+][A-Za-z0-9]+`'
+#
+# Both this repo's bindings and the pass-through keys are now spelled opt+, so
+# spelling can no longer tell them apart — it used to, and that difference was
+# itself the bug: a reader in a device app saw `alt+n` on a screen whose only
+# Option button says `opt`. The extractors therefore match any opt+ cell, and
+# check_pairs distinguishes them by which set of keys it is handed.
+BINDING_CELL='`opt[+][A-Za-z0-9]+`'
 
 # README.md bindings: | `alt+a` | `action` | Context | Does |
 readme_bindings() {
@@ -347,15 +374,15 @@ check_keyset() {
 }
 
 echo "-- bindings"
-check_pairs "README.md bindings"                 "$(readme_bindings)"      "$BINDING_TRUTH"
-check_pairs "docs/work-louder-input.md bindings" "$(work_louder_bindings)" "$BINDING_TRUTH"
-check_pairs "docs/stream-deck.md bindings"       "$(stream_deck_bindings)" "$BINDING_TRUTH"
-check_pairs "docs/qmk-via.md bindings"           "$(qmk_via_bindings)"     "$BINDING_TRUTH"
+check_pairs "README.md bindings"                 "$(readme_bindings | only_keys "$BINDING_KEYS")"      "$BINDING_TRUTH"
+check_pairs "docs/work-louder-input.md bindings" "$(work_louder_bindings | only_keys "$BINDING_KEYS")" "$BINDING_TRUTH"
+check_pairs "docs/stream-deck.md bindings"       "$(stream_deck_bindings | only_keys "$BINDING_KEYS")" "$BINDING_TRUTH"
+check_pairs "docs/qmk-via.md bindings"           "$(qmk_via_bindings | only_keys "$BINDING_KEYS")"     "$BINDING_TRUTH"
 
 echo "-- pass-through keys"
-check_pairs "README.md pass-through"                 "$(readme_passthrough)"      "$PASSTHROUGH_TRUTH"
-check_pairs "docs/work-louder-input.md pass-through" "$(work_louder_passthrough)" "$PASSTHROUGH_TRUTH"
-check_pairs "docs/qmk-via.md pass-through"           "$(qmk_via_passthrough)"     "$PASSTHROUGH_TRUTH"
+check_pairs "README.md pass-through"                 "$(readme_passthrough | only_keys "$PASSTHROUGH_KEYS")"      "$PASSTHROUGH_TRUTH"
+check_pairs "docs/work-louder-input.md pass-through" "$(work_louder_passthrough | only_keys "$PASSTHROUGH_KEYS")" "$PASSTHROUGH_TRUTH"
+check_pairs "docs/qmk-via.md pass-through"           "$(qmk_via_passthrough | only_keys "$PASSTHROUGH_KEYS")"     "$PASSTHROUGH_TRUTH"
 check_keyset "docs/stream-deck.md pass-through (keys only; the prose list carries no meanings)" \
   "$(stream_deck_passthrough_keys)" \
   "$(printf '%s\n' "$PASSTHROUGH_TRUTH" | cut -f1 | sort)"
@@ -380,8 +407,8 @@ else
     pass "docs/stream-deck.md: Karabiner sends one left_option keystroke"
   fi
 
-  if printf '%s\n' "$BINDING_TRUTH" | cut -f1 | grep -qxF -- "alt+$K_CODE"; then
-    pass "docs/stream-deck.md: Karabiner key \"$K_CODE\" is the binding \"alt+$K_CODE\""
+  if printf '%s\n' "$BINDING_TRUTH" | cut -f1 | grep -qxF -- "opt+$K_CODE"; then
+    pass "docs/stream-deck.md: Karabiner key \"$K_CODE\" is the binding \"opt+$K_CODE\""
   else
     fail "docs/stream-deck.md: Karabiner key \"$K_CODE\" is not one of the documented bindings"
   fi

@@ -64,7 +64,7 @@ In order:
    hides the error and prints nothing. `-p` does not help: a headless run logs
    no keybinding lines at all.
 3. **Is your terminal passing Option through as a modifier?** If the key types a
-   bare character — `å` for `alt+a`, `∆` for `alt+j` — Option is composing a
+   bare character — `å` for `opt+a`, `∆` for `opt+j` — Option is composing a
    character instead. In iTerm2, set Profiles → Keys → Left Option key to
    `Esc+`. The pass-through keys `opt+p`, `opt+t` and `opt+o` need the same
    setting, so if those already work, this is not your problem.
