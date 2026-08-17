@@ -99,10 +99,33 @@ so they get their own sections in Input.
 
 | Input | Assignment | Why |
 | --- | --- | --- |
-| Dial, counter-clockwise | `alt+k` | Previous chat |
-| Dial, clockwise | `alt+j` | Next chat |
+| Dial, counter-clockwise | `Up` | Scroll the transcript, or step back through prompt history |
+| Dial, clockwise | `Down` | Scroll forward, or step forward through prompt history |
 | Dial, press | `Escape` | Cancel, or decline a permission prompt |
-| Joystick, 4 sectors | `Up` `Down` `Left` `Right` | Navigate dialogs and select lists |
+| Joystick, up | `ctrl+Up` | Mission Control |
+| Joystick, down | `ctrl+Down` | Show all windows of the front app |
+| Joystick, left | `alt+k` | Previous chat |
+| Joystick, right | `alt+j` | Next chat |
+
+Rotating is for reading, pointing is for moving. The dial needs no binding at
+all — `Up`/`Down` already mean scroll in the transcript and prompt history in the
+chat, so one mapping is right in both places, and long output in a terminal
+scrolls under your thumb.
+
+**The joystick's vertical axis targets the operating system, not Claude Code.**
+It suits running one terminal window per worktree: `ctrl+Up` is Mission Control
+and `ctrl+Down` shows every window of the front app, so up and down get you *to*
+the right window while left and right move between sessions once you are there.
+
+macOS intercepts both before any application sees them. Claude Code does bind
+`ctrl+up` and `ctrl+down` — `messageSelector:top`/`bottom` and
+`app:diffFileListUp`/`Down` — but the system shortcuts win whenever Mission
+Control is at its defaults, which is every Mac out of the box. So this costs you
+nothing that was reachable anyway. It is worth knowing if you ever wonder why
+`messageSelector:top` seems unresponsive: that is macOS, not this repo.
+
+In the Claude desktop app there are no terminal windows to move between, so the
+vertical axis does nothing there while the horizontal axis still works.
 
 Cycling sessions on the dial is what frees the two keys that would otherwise
 hold previous and next — which is how all twelve keys end up carrying something.

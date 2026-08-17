@@ -152,7 +152,8 @@ has one, for launching Claude.
 
 The layout is built so the whole loop works without touching the keyboard: hold
 the big key to dictate, release, press the key beside it to send. Escape declines
-a permission prompt, `ctrl+c` stops a runaway turn, and the dial cycles sessions.
+a permission prompt, `ctrl+c` stops a runaway turn, the dial scrolls long output,
+and the joystick moves between sessions and terminal windows.
 
 ## Path B — keyboard only
 
