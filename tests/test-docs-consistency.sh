@@ -151,13 +151,24 @@ readme_chords() {
   }' "$README" | sort
 }
 
-# docs/work-louder-input.md chords: | Row | Pos | Chord | `ctrl+x` then `a` | Does |
+# docs/work-louder-input.md carries chords in two tables of different widths:
+# the key grid  | Row | Column | Type | `ctrl+x` then `a` | Does |
+# and the dial  | Dial, clockwise | `ctrl+x` then `]` | Next chat |
+#
+# So rather than hardcode a column index, find whichever cell holds the chord
+# and take the cell after it as the meaning. Shape-agnostic, which means adding
+# a third table later does not silently drop out of coverage.
 work_louder_chords() {
-  awk -F'|' -v t="$TAB" '/^\|/ && $5 ~ /`ctrl[+]x` then `/ {
-    k=$5; m=$6
-    sub(/.*`ctrl[+]x` then `/,"",k); sub(/`.*/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
-    print k t m
+  awk -F'|' -v t="$TAB" '/^\|/ {
+    for (i = 2; i < NF; i++) {
+      if ($i ~ /`ctrl[+]x` then `/) {
+        k = $i; m = $(i + 1)
+        sub(/.*`ctrl[+]x` then `/, "", k); sub(/`.*/, "", k)
+        gsub(/^[ \t]+|[ \t]+$/, "", m)
+        print k t m
+        break
+      }
+    }
   }' "$WORK_LOUDER" | sort
 }
 

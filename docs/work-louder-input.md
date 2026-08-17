@@ -38,34 +38,74 @@ keyboard**. Three assignment types appear:
 - **Chord** — a Multi Action sending two keystrokes *in sequence*.
 - **Smart Action** — Input's app-launcher type (`APP_STEP`).
 
-| Row | Slot(s) | Type | Sends | Does |
+### Reading the grid
+
+The face is a **4 × 4 grid**, and three of its sixteen cells are not ordinary
+keys. Input shows the layout visually — click a cell and it highlights, so you
+never have to count positions.
+
+```
+        col 0        col 1        col 2        col 3
+row 0   ◉ DIAL       key          key          ✛ JOYSTICK
+row 1   key          key          key          key
+row 2   key          key          key          key
+row 3   ⇄ LAYER      ▒▒▒▒ fat key ▒▒▒▒         key
+```
+
+That leaves **12 assignable keys**. The bottom-left cell switches layers and is
+left alone; the fat key is double-width and covers both (3,1) and (3,2).
+
+This is also why the stored keymap reads 2 / 4 / 4 / 3: row 0 has two keys
+because the dial and joystick take its outer cells, and row 3 has three slots
+because the layer key is not part of the keymap.
+
+### The keys
+
+| Row | Column | Type | Sends | Does |
 | --- | --- | --- | --- | --- |
 | 0 | 1 | Smart Action | Launch `Claude.app` | Open Claude |
-| 0 | 2 | Key | `Escape` | Cancel input, decline a permission prompt |
-| 1 | 1 | Chord | `ctrl+x` then `a` | Jump to session needing you |
-| 1 | 2 | Chord | `ctrl+x` then `[` | Previous chat |
-| 1 | 3 | Chord | `ctrl+x` then `]` | Next chat |
-| 1 | 4 | Chord | `ctrl+x` then `n` | New chat |
-| 2 | 1 | Key | `ctrl+c` | Interrupt a running turn |
-| 2 | 2 | Key | `shift+tab` | Cycle permission mode |
-| 2 | 3 | Chord | `ctrl+x` then `s` | Toggle chat strip |
-| 2 | 4 | Key | `ctrl+o` | Transcript |
+| 0 | 2 | Chord | `ctrl+x` then `a` | Jump to session needing you |
+| 1 | 0 | Chord | `ctrl+x` then `n` | New chat |
+| 1 | 1 | Chord | `ctrl+x` then `s` | Toggle chat strip |
+| 1 | 2 | Key | `ctrl+o` | Transcript |
+| 1 | 3 | Key | `ctrl+c` | Interrupt a running turn |
+| 2 | 0 | Key | `shift+tab` | Cycle permission mode |
+| 2 | 1 | Key | `opt+p` | Model picker |
+| 2 | 2 | Key | `opt+t` | Thinking toggle |
+| 2 | 3 | Key | `opt+o` | Fast mode |
 | 3 | **1 and 2** | Key | `Space` | Voice dictation, held — the fat key |
 | 3 | 3 | Key | `Enter` | Submit / proceed |
 
 The bottom row is the core loop: hold the fat key and talk, release, press
-`Enter`. Two adjacent keys for dictate-and-send.
+`Enter` beside it. Dictate and send, two adjacent keys.
 
-**Assign `Space` to both slot 1 and slot 2 of row 3.** The double-width key
-reports through one of the two, and which one is not visible in the stored
-keymap. Setting both is harmless and guarantees the key works either way.
+**Assign `Space` to both (3,1) and (3,2).** The double-width key reports through
+one of the two and the stored keymap does not reveal which. Setting both is
+harmless and guarantees it works either way.
 
-Encoder: counter-clockwise `Up`, clockwise `Down`, press `Enter`. Those need no
-binding — `Up`/`Down` already mean prompt history in the chat and scrolling in the
-transcript, so one mapping is correct in both places. The press duplicates the
-`Enter` key deliberately; whichever your hand reaches first.
+### The dial and the joystick
 
-Joystick: leave unassigned.
+Both are configured separately from the keys — they are not rows in the keymap,
+so they get their own sections in Input.
+
+| Input | Assignment | Why |
+| --- | --- | --- |
+| Dial, counter-clockwise | `ctrl+x` then `[` | Previous chat |
+| Dial, clockwise | `ctrl+x` then `]` | Next chat |
+| Dial, press | `Escape` | Cancel, or decline a permission prompt |
+| Joystick, 4 sectors | `Up` `Down` `Left` `Right` | Navigate dialogs and select lists |
+
+Cycling sessions on the dial is what frees the two keys that would otherwise
+hold previous and next — which is how all twelve keys end up carrying something.
+
+Arrow keys on the joystick matter more than they look: permission prompts, the
+model picker, and every select list are driven by arrows, so without them a
+pad-only workflow stalls at the first dialog.
+
+The joystick is radial, defined by angle ranges rather than named directions.
+Assign the four directional sectors to the arrows that match what Input shows for
+each direction. If your device already has a narrow sector set to `KI_X`, leave
+it — it appears in untouched layers too and is not something you set.
 
 ### Shortcuts deliberately left off the pad
 
