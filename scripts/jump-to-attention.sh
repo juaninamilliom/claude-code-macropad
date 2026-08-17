@@ -47,11 +47,40 @@ DRY_RUN="${CLAUDE_MACROPAD_DRY_RUN:-0}"
 
 notify() {
     [ "$DRY_RUN" = "1" ] && return 0
+    # A notification is the nicer signal but needs this app to be allowed in
+    # Notification settings, which it will not be the first time. The sound
+    # needs no permission at all, and "the key did something" is the part worth
+    # guaranteeing: without it, a press with nothing to jump to is
+    # indistinguishable from a key that is not wired up.
+    afplay /System/Library/Sounds/Tink.aiff >/dev/null 2>&1 &
     osascript \
         -e 'on run {msg, ttl}' \
         -e 'display notification msg with title ttl' \
         -e 'end run' \
         "$1" "Claude Code" 2>/dev/null
+}
+
+# The session iTerm2 is showing right now, or empty when iTerm2 is not the
+# frontmost app. Used to skip the window you are already looking at: pressing
+# the key there should take you to the *next* thing that wants you, not
+# redraw the window under your nose.
+#
+# Only skip when iTerm2 is actually frontmost. Coming from another application
+# you want the waiting session focused even if it happens to be iTerm2's
+# current one, because you cannot see it.
+current_session() {
+    # Tests pin this rather than asking the window server, so the skip logic
+    # above can be exercised without moving a real window around.
+    if [ -n "${CLAUDE_MACROPAD_CURRENT_SESSION:-}" ]; then
+        printf '%s' "$CLAUDE_MACROPAD_CURRENT_SESSION"
+        return 0
+    fi
+    [ "$DRY_RUN" = "1" ] && return 0
+    osascript \
+        -e 'tell application "System Events" to set f to name of first process whose frontmost is true' \
+        -e 'if f is not "iTerm2" then return ""' \
+        -e 'tell application "iTerm2" to return id of current session of current tab of current window' \
+        2>/dev/null
 }
 
 # Every marker, longest-waiting first, as "epoch<TAB>project<TAB>uuid<TAB>tty".
@@ -107,9 +136,17 @@ focus_iterm() {
 
 # Walk the queue oldest-first. A marker whose window has since been closed is
 # stale: drop it and move on rather than making the key look broken.
+CURRENT=$(current_session)
 FOUND=0
 while IFS=$'\t' read -r epoch project uuid tty file; do
     [ -n "$epoch" ] || continue
+
+    # Already looking at it. Clear the marker — you have seen it — and carry on
+    # to whatever else is waiting.
+    if [ -n "$CURRENT" ] && [ "$uuid" = "$CURRENT" ]; then
+        rm -f "$file" 2>/dev/null
+        continue
+    fi
 
     if [ -z "$uuid" ]; then
         # A terminal that exposed no iTerm2 session id. Nothing to focus by, so

@@ -199,6 +199,16 @@ On a pad with an app-launcher action, point it at the `JumpToAttention.app` buil
 in step 4. Otherwise bind the script to a hotkey with Karabiner —
 [`docs/stream-deck.md`](docs/stream-deck.md#running-the-jump-script-from-a-key).
 
+Two things to expect the first time, both of which look like a broken key:
+
+- **The first press is eaten by a permission prompt.** macOS asks before letting
+  the app control iTerm2, and the script waits for the answer. Approve it and
+  press again.
+- **A press with nothing waiting plays a short sound and does nothing else.** So
+  does pressing it inside the only session that is waiting — there is nowhere to
+  go. Testing a new key immediately, when nothing is waiting, is the usual way
+  people conclude it does not work. **Use two windows.**
+
 To see the queue without moving:
 
 ```bash

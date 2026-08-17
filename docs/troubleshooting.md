@@ -99,12 +99,32 @@ second axis — a joystick or a spare pair of keys.
 
 ## The jump key does nothing
 
+Before anything else, check whether it has anywhere to go:
+
 ```bash
 ~/.claude/hooks/jump-to-attention.sh --list
 ```
 
 **"nothing waiting"** — no session has asked for you since you last cleared the
-queue. Nothing is broken. Give a session a task, let it finish, and try again.
+queue. Nothing is broken. You should have heard a short sound when you pressed
+it; that is the key telling you it ran and had nowhere to go.
+
+This is by far the most common report, because the obvious way to test a new key
+is to press it immediately — when nothing is waiting. **Test with two windows**:
+start Claude Code in a second one, give it a long task, come back to the first,
+and press the key when the notification arrives.
+
+**Only your own session is listed** — pressing the key focuses the window you are
+already looking at, which looks like nothing happening. The script skips the
+current session for exactly this reason and clears its marker, so you get the
+sound instead. Still a real test failure in the sense that it proves nothing;
+use two windows.
+
+**The very first press did nothing, and now it works** — that was macOS asking
+for Automation permission. The script waits for the answer, so the first press
+is consumed by the prompt. If you never saw a prompt, look in System Settings →
+Privacy & Security → Automation, under `JumpToAttention`, and make sure iTerm is
+ticked. A denied permission is remembered and never asked again.
 
 **Sessions are listed but the key does not move you** — the pad's action is not
 reaching the script. Run the script by hand; if that works, the fault is in the

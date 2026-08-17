@@ -105,7 +105,38 @@ else
   pass "a corrupt marker is discarded"
 fi
 
-# --- 7. An empty queue reports itself instead of failing --------------------
+# --- 7. The window you are already looking at is skipped, not re-focused ----
+# Pressing the key in a waiting session should take you to the *next* thing
+# that wants you. Re-focusing the window already under your nose looks exactly
+# like a key that is not wired up, which is how this was first reported.
+rm -rf "$ATT"; mkdir -p "$ATT"
+printf '1000\there\t%s\t/dev/ttys001\n'  "$UUID_A" > "$ATT/$UUID_A"
+printf '2000\tthere\t%s\t/dev/ttys002\n' "$UUID_B" > "$ATT/$UUID_B"
+OUT=$(CLAUDE_MACROPAD_CURRENT_SESSION="$UUID_A" CLAUDE_MACROPAD_DRY_RUN=1 \
+      bash "$ROOT/scripts/jump-to-attention.sh")
+if [ "$OUT" = "$(printf 'there\t%s' "$UUID_B")" ]; then
+  pass "the session you are already in is skipped in favour of the next one"
+else
+  fail "expected to skip $UUID_A and target there/$UUID_B, got \"$OUT\""
+fi
+if [ -f "$ATT/$UUID_A" ]; then
+  fail "the skipped session's marker was left behind; it would be skipped forever"
+else
+  pass "the skipped session's marker is cleared — you have seen it"
+fi
+
+# And when it is the only one waiting, that is an empty queue, not a jump.
+rm -rf "$ATT"; mkdir -p "$ATT"
+printf '1000\there\t%s\t/dev/ttys001\n' "$UUID_A" > "$ATT/$UUID_A"
+OUT=$(CLAUDE_MACROPAD_CURRENT_SESSION="$UUID_A" CLAUDE_MACROPAD_DRY_RUN=1 \
+      bash "$ROOT/scripts/jump-to-attention.sh")
+if printf '%s' "$OUT" | grep -q "nothing waiting"; then
+  pass "the only waiting session being the current one reports nothing waiting"
+else
+  fail "expected \"nothing waiting\", got \"$OUT\""
+fi
+
+# --- 8. An empty queue reports itself instead of failing --------------------
 rm -rf "$ATT"
 OUT=$(CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh"); RC=$?
 if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "nothing waiting"; then

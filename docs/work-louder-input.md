@@ -136,13 +136,32 @@ other app.
 whose only job is to give Input something launchable to point at, because Smart
 Actions launch applications and cannot run a script directly.
 
-The queue empties as you work: arriving at a session clears it, and so does
-typing into one, so the key stops doing anything once nothing is waiting. If you
-want to see the queue without moving:
+**The first press will not move anything.** macOS asks permission the first time
+the app tries to control iTerm2, and the script sits waiting until you answer.
+Approve it, then press again. If you missed the prompt it is in System Settings →
+Privacy & Security → Automation, under `JumpToAttention`.
+
+**A press with nothing waiting plays a short sound and does nothing else.** That
+is the design — but it is worth knowing, because the first time you test this
+there will usually be nothing waiting, and a key that does nothing looks exactly
+like a key that is not wired up. Same for pressing it *in* the session that is
+waiting: there is nowhere to go, so you get the sound. The marker is cleared
+either way.
+
+To be sure the key works, you need **two** sessions: start Claude Code in a
+second window, give it a long task, come back to the first, and press when the
+notification arrives.
+
+The queue empties as you work: arriving at a session clears it, typing into one
+clears it, and pressing the key while you are already in a waiting session
+clears that one and moves you to the next. To see the queue without moving:
 
 ```bash
 ~/.claude/hooks/jump-to-attention.sh --list
 ```
+
+If that prints `nothing waiting`, the key has nothing to do and the fault is not
+in your pad.
 
 This needs iTerm2. It finds windows through iTerm2's scripting interface, and
 there is no equivalent path for Terminal.app in this repo — the marker is still
