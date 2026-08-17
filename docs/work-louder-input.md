@@ -10,6 +10,18 @@ counts from 0. "Layer 1" in the app is layer id 0 on disk.
 
 ## Before you start
 
+**Set your terminal's Option key to send `Esc+`.** In iTerm2 that is Profiles →
+Keys → General → Left Option key → `Esc+`. Nothing on the bottom two rows of this
+layout works without it, and the failure is silent: on the default `Normal`
+setting, macOS composes Option-P into `π` and Claude Code receives a character
+rather than a shortcut.
+
+Claude Code compensates for exactly three of these by hand — it carries a
+lookup mapping `π`, `ø` and `†` back to `opt+p`, `opt+o` and `opt+t` — which is
+worth knowing because it makes the symptom confusing. Those three shortcuts work
+on the default setting and every other Option key silently does not. Change the
+setting; do not conclude from `opt+p` working that Option is fine.
+
 The bundled ChatGPT layer is built on vendor firmware keycodes (`KV_OAI_AG00`,
 `KV_OAI_ACT06`, …) that mean nothing outside OpenAI's integration, so there is
 nothing in it to repoint at Claude Code. Build a **new layer** rather than
@@ -68,27 +80,27 @@ because the layer key is not part of the keymap.
 
 | Row | Column | Type | Sends | Does |
 | --- | --- | --- | --- | --- |
-| 0 | 1 | Smart Action | Launch `Claude.app` | Open Claude |
-| 0 | 2 | Key | `opt+a` | Jump to session needing you |
-| 1 | 0 | Key | `opt+n` | New chat |
-| 1 | 1 | Key | `opt+s` | Toggle chat strip |
-| 1 | 2 | Key | `ctrl+o` | Transcript |
-| 1 | 3 | Key | `ctrl+c` | Interrupt a running turn |
-| 2 | 0 | Key | `shift+tab` | Cycle permission mode |
-| 2 | 1 | Key | `opt+p` | Model picker |
-| 2 | 2 | Key | `opt+t` | Thinking toggle |
-| 2 | 3 | Key | `opt+o` | Fast mode |
+| 0 | 1 | Smart Action | Launch `JumpToAttention.app` | Go to the session waiting on you |
+| 0 | 2 | Key | `ctrl+r` | Search prompt history |
+| 1 | 0 | Key | `ctrl+t` | Todo list |
+| 1 | 1 | Key | `ctrl+o` | Transcript |
+| 1 | 2 | Key | `shift+tab` | Cycle permission mode |
+| 1 | 3 | Key | `ctrl+c` | Interrupt |
+| 2 | 0 | Key | `opt+p` | Model picker |
+| 2 | 1 | Key | `opt+t` | Thinking toggle |
+| 2 | 2 | Key | `opt+o` | Fast mode |
+| 2 | 3 | Key | `ctrl+b` | Background the task |
 | 3 | **1 and 2** | Key | `Space` | Voice dictation, held — the fat key |
-| 3 | 3 | Key | `Enter` | Submit / proceed |
+| 3 | 3 | Key | `Enter` | Submit |
 
-Every modifier above is spelled the way Input spells it, so what you read here is
-what you click. `opt` is the Option key — the button labelled `opt` in Input's
-modifier palette. There is no `alt` button; it is the same key under a different
-name.
+**Every keystroke above is one Claude Code already binds itself.** Nothing on
+this pad depends on `config/keybindings.json`, which is why the layout is worth
+trusting: there is no configuration between your keypress and the action.
 
-You will see `alt+…` inside `config/keybindings.json`, because that is the
-spelling Claude Code's configuration format requires. Same modifier, same
-physical key. Nothing you type into Input ever says `alt`.
+`opt` is the Option key — the button labelled `opt` in Input's modifier palette.
+There is no `alt` button; it is the same key under a different name. Claude Code
+spells that modifier `alt` in `keybindings.json` and `meta` in its internal
+defaults. Three names, one physical key, and only `opt` is one you ever click.
 
 The bottom row is the core loop: hold the fat key and talk, release, press
 `Enter` beside it. Dictate and send, two adjacent keys.
@@ -97,6 +109,45 @@ The bottom row is the core loop: hold the fat key and talk, release, press
 one of the two and the stored keymap does not reveal which. Setting both is
 harmless and guarantees it works either way.
 
+### The jump key
+
+Row 0, column 1 is the one key here that is not a keystroke, and it is the most
+useful key on the pad: it takes you to whichever session has been waiting on you
+longest, and pressing it again takes you to the next one.
+
+Claude Code cannot do this. Its action list contains `chat:attentionDown`,
+`chat:attentionUp` and thirteen `strip:*` actions that describe exactly this
+feature, and all sixteen are names with no implementation behind them — binding
+a key to one produces silence, not an error. So the jump happens at the window
+level instead, driven by the notification hook this repo installs.
+
+Build the app it launches with one command:
+
+```bash
+osacompile -o ~/Applications/JumpToAttention.app \
+  -e 'do shell script "$HOME/.claude/hooks/jump-to-attention.sh"'
+```
+
+Then set row 0, column 1 to a **Smart Action** pointing at
+`~/Applications/JumpToAttention.app`, exactly as you would for launching any
+other app.
+
+`osacompile` ships with macOS; nothing needs installing. The app is a wrapper
+whose only job is to give Input something launchable to point at, because Smart
+Actions launch applications and cannot run a script directly.
+
+The queue empties as you work: arriving at a session clears it, and so does
+typing into one, so the key stops doing anything once nothing is waiting. If you
+want to see the queue without moving:
+
+```bash
+~/.claude/hooks/jump-to-attention.sh --list
+```
+
+This needs iTerm2. It finds windows through iTerm2's scripting interface, and
+there is no equivalent path for Terminal.app in this repo — the marker is still
+written, and the jump reports that it cannot use it.
+
 ### The dial and the joystick
 
 Both are configured separately from the keys — they are not rows in the keymap,
@@ -104,40 +155,46 @@ so they get their own sections in Input.
 
 | Input | Assignment | Why |
 | --- | --- | --- |
-| Dial, counter-clockwise | `Up` | Scroll the transcript, or step back through prompt history |
-| Dial, clockwise | `Down` | Scroll forward, or step forward through prompt history |
+| Dial, counter-clockwise | `Up` | Previous option, previous prompt, scroll back a line |
+| Dial, clockwise | `Down` | Next option, next prompt, scroll forward a line |
 | Dial, press | `Escape` | Cancel, or decline a permission prompt |
-| Joystick, up | `ctrl+Up` | Mission Control |
-| Joystick, down | `ctrl+Down` | Show all windows of the front app |
-| Joystick, left | `opt+k` | Previous chat |
-| Joystick, right | `opt+j` | Next chat |
+| Joystick, up | `PageUp` | Scroll back a page |
+| Joystick, down | `PageDown` | Scroll forward a page |
+| Joystick, left | `Left` | Move the cursor, or move within a dialog |
+| Joystick, right | `Right` | Move the cursor, or move within a dialog |
 
-Rotating is for reading, pointing is for moving. The dial needs no binding at
-all — `Up`/`Down` already mean scroll in the transcript and prompt history in the
-chat, so one mapping is right in both places, and long output in a terminal
-scrolls under your thumb.
+**Put `Up`/`Down` on the dial, not `PageUp`/`PageDown`.** They are not two
+speeds of the same thing, and the difference is the single easiest mistake to
+make here:
 
-**The joystick's vertical axis targets the operating system, not Claude Code.**
-It suits running one terminal window per worktree: `ctrl+Up` is Mission Control
-and `ctrl+Down` shows every window of the front app, so up and down get you *to*
-the right window while left and right move between sessions once you are there.
+| Sends | In the chat input | In an option list | In the transcript |
+| --- | --- | --- | --- |
+| `Up` / `Down` | prompt history | **moves the selection** | scrolls a line |
+| `PageUp` / `PageDown` | nothing | **nothing** | scrolls a page |
 
-macOS intercepts both before any application sees them. Claude Code does bind
-`ctrl+up` and `ctrl+down` — `messageSelector:top`/`bottom` and
-`app:diffFileListUp`/`Down` — but the system shortcuts win whenever Mission
-Control is at its defaults, which is every Mac out of the box. So this costs you
-nothing that was reachable anyway. It is worth knowing if you ever wonder why
-`messageSelector:top` seems unresponsive: that is macOS, not this repo.
+Claude Code binds `up` and `down` in every context that has a list —
+`confirm:previous`/`next` for permission prompts, `select:previous`/`next` for
+the model picker and settings, `autocomplete:previous`/`next` for the command
+menu. It binds `pageup` and `pagedown` only in its scrolling contexts. So a dial
+set to `PageUp` scrolls output perfectly well and can never choose an option,
+which is a confusing thing to debug: the dial obviously works, and yet the one
+moment you need it — a permission prompt with three choices — it does nothing.
 
-In the Claude desktop app there are no terminal windows to move between, so the
-vertical axis does nothing there while the horizontal axis still works.
+Rotating is therefore for choosing, and pointing is for reading. Putting the
+page keys on the joystick's vertical axis gets you both without giving anything
+up.
 
-Cycling sessions on the dial is what frees the two keys that would otherwise
-hold previous and next — which is how all twelve keys end up carrying something.
+Arrow keys matter more than they look: permission prompts, the model picker, and
+every select list are driven by arrows, so without them a pad-only workflow
+stalls at the first dialog.
 
-Arrow keys on the joystick matter more than they look: permission prompts, the
-model picker, and every select list are driven by arrows, so without them a
-pad-only workflow stalls at the first dialog.
+**This costs Mission Control**, which is the other reasonable use for the
+joystick's vertical axis: `ctrl+Up` and `ctrl+Down` show all windows and all
+windows of the front app, and macOS intercepts both before any application sees
+them. That was worth a key back when moving between session windows meant
+finding them by eye. The jump key does that job now, without looking, so the
+page keys are the better tenant. If you would rather have Mission Control, swap
+them back — just leave `Up`/`Down` on the dial.
 
 The joystick is radial, defined by angle ranges rather than named directions.
 Assign the four directional sectors to the arrows that match what Input shows for
@@ -151,15 +208,17 @@ keystrokes you rarely want mid-flow:
 
 | Key | Does |
 | --- | --- |
-| `opt+p` | Model picker |
-| `opt+t` | Thinking toggle |
-| `opt+o` | Fast mode |
-| `ctrl+t` | Todo list |
 | `ctrl+g` | External editor |
+| `ctrl+s` | Stash the prompt |
+| `ctrl+shift+b` | Toggle the brief |
+| `opt+k` | Kill running agents |
+| `opt+z` | Undo |
 
-`opt` is Option, not Command. Claude Code spells these `alt+…`, the same modifier
-on macOS. If you do put one on a spare pad key, press Option when Input records
-it — Command produces a combination iTerm2 intercepts before Claude Code sees it.
+The last two are the only entries in this repo's `config/keybindings.json`.
+Claude Code binds those actions to `ctrl+x ctrl+k` and `ctrl+_` — a two-key chord
+and an awkward combination — and a chord is precisely what Input cannot send. If
+you want either on a pad key, install that config and assign `opt+k` or `opt+z`
+like any other combination.
 
 ## The voice key is different
 
@@ -171,6 +230,10 @@ and release to end. A macro fires and completes; it cannot be held. Assign
 Held keys do work on this pad — a modifier such as `KC_LSFT` assigned to a pad
 key behaves as a real held modifier, which is the same mechanism voice relies on.
 
+`Space` needs no configuration on the Claude Code side either: `voice:pushToTalk`
+is bound to it by default in the `Chat` context. You do have to switch voice on
+once, with `/voice hold` in a terminal.
+
 ## Steps in Input
 
 1. Open Input with the Creator Micro 2 connected (see
@@ -179,18 +242,27 @@ key behaves as a real held modifier, which is the same mechanism voice relies on
 3. For each **Key** row: click the key in the layout, choose the keyboard shortcut
    assignment on the **Basic** tab, and press the combination with the modifier
    held.
-4. For the **Smart Action** row: choose Smart Action, pick the app type, and point
-   it at `/Applications/Claude.app`.
+4. Build `JumpToAttention.app` with the `osacompile` command above, then set row
+   0, column 1 to a Smart Action pointing at it.
 5. Row 3's fat key: assign `Space` to both of its slots.
-6. Set the encoder's three actions.
+6. Set the encoder's three actions and the joystick's four sectors.
 7. Sync to the device.
-8. Optional: under linked apps, link this layer to iTerm and Claude, so the keys
-   only fire where they mean something.
+8. Optional: under linked apps, link this layer to iTerm, so the keys only fire
+   where they mean something.
 
 ## Verifying
 
-Open Claude Code and press each key once, top to bottom, against the table above.
-If a key types a bare character — `å` for `opt+a` — Option reached the terminal
-as a compose key rather than a modifier. Set iTerm2's Profiles → Keys → Left
-Option key to `Esc+`. If it types nothing at all, Input recorded the key without
-its modifier: re-record it with Option held.
+Open Claude Code in a terminal and press each key once, top to bottom, against
+the table above.
+
+If a key types a bare character — `®` for `opt+r`, `π` for `opt+p` — Option
+reached the terminal as a compose key rather than a modifier, and the `Esc+`
+setting at the top of this page is not applied. If it types nothing at all, Input
+recorded the key without its modifier: re-record it with Option held.
+
+**Test the jump key with two sessions.** Start Claude Code in two windows, give
+one a long task, switch to the other, and press the key when the notification
+arrives. One session waiting is not much of a test of a queue.
+
+**None of this works in the Claude desktop app.** The keystrokes above are
+terminal shortcuts, and the desktop app does not act on them. Use a terminal.

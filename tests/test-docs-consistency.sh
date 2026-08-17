@@ -7,39 +7,24 @@
 # manipulator — so a plain text diff across files catches nothing. This parses
 # each syntax and compares (key, meaning) *pairs*.
 #
-# Pairs, not key sets, is the point. Comparing sets only proves the same five
-# keys are named in every file; it passes happily when a guide teaches `alt+k`
-# as "Next chat", which is a working key that does the opposite of what the
-# reader was told. So this catches a dropped character, a swapped character,
-# and a swapped label, in either the key column or the meaning column.
+# Pairs, not key sets, is the point. Comparing sets only proves the same keys
+# are named in every file; it passes happily when a guide teaches `ctrl+o` as
+# "Todo list", which is a working key that does the wrong thing. So this catches
+# a dropped character, a swapped character, and a swapped label, in either
+# column.
 #
-# Two sources of truth:
-#   - config/keybindings.json for which keystroke runs which action.
-#   - The tables below for the English meaning of an action, and for the
-#     pass-through keys, which no config file in this repo defines. Claude Code
-#     binds those itself; they were read out of the 2.1.233 binary by hand.
-# A pass here means the docs agree with each other and with the config. It
-# cannot mean the config agrees with Claude Code.
+# The source of truth is PAD_TRUTH below, and it is a hand-kept table rather
+# than something read out of a config file. That is a deliberate change: this
+# layout is built entirely from keystrokes Claude Code binds itself, so there is
+# no config file left to read it from. config/keybindings.json now carries only
+# the two off-pad extras, and tests/test-keybindings.sh checks those.
 #
-# Every syntax is parsed, including the Karabiner manipulator in
-# docs/stream-deck.md, whose fifth spelling ("key_code": "k" carrying the
-# "left_option" modifier) is checked as the one binding it documents by
-# example: a single event, the Option modifier, and a key the config binds.
-#
-# docs/qmk-via.md needs section scoping where the others do not. Its bindings
-# and its pass-through keys are both `LALT(KC_x)`-shaped rows in two-column
-# tables, so shape alone cannot tell them apart. Each extractor reads only its
-# own "## " section; rename a heading and the extractor yields nothing, which
-# check_pairs reports as a failure rather than passing quietly.
-#
-# One gap, and it is in the source rather than here: docs/stream-deck.md lists
-# its pass-through keys in a prose sentence with no meanings attached, so only
-# the key set can be compared. That assertion says so in its own name. Give
-# that list a table and this becomes a pair check like the rest.
+# A pass here means the guides agree with each other. It cannot mean they agree
+# with Claude Code — for that, see the unimplemented-action check in
+# tests/test-keybindings.sh, which is what the last round of drift needed.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-KEYBINDINGS="$ROOT/config/keybindings.json"
 README="$ROOT/README.md"
 WORK_LOUDER="$ROOT/docs/work-louder-input.md"
 STREAM_DECK="$ROOT/docs/stream-deck.md"
@@ -51,344 +36,151 @@ pass() { echo "PASS: $*"; }
 
 TAB=$'\t'
 
-# The English meaning of each action this repo binds. Every guide must use
-# these words verbatim, so that agreement is checkable rather than a judgement.
-meaning_for_action() {
-  case "$1" in
-    strip:previous)     echo "Previous chat" ;;
-    strip:next)         echo "Next chat" ;;
-    strip:new)          echo "New chat" ;;
-    strip:toggle)       echo "Toggle chat strip" ;;
-    chat:attentionDown) echo "Jump to session needing you" ;;
-    *) return 1 ;;
-  esac
-}
-
-# Keys Claude Code binds itself. Not in any config file here, and therefore the
-# thing most likely to drift unnoticed — which is exactly how three of them sat
-# documented as cmd+... instead of opt+... through several passes.
-PASSTHROUGH_TRUTH="shift+tab${TAB}Cycle permission mode
+# Every keystroke on the pad, and the words every guide must use for it.
+# Claude Code 2.1.233 binds all of them itself.
+PAD_TRUTH="ctrl+r${TAB}Search prompt history
+ctrl+t${TAB}Todo list
+ctrl+o${TAB}Transcript
+shift+tab${TAB}Cycle permission mode
+ctrl+c${TAB}Interrupt
 opt+p${TAB}Model picker
 opt+t${TAB}Thinking toggle
 opt+o${TAB}Fast mode
-ctrl+o${TAB}Transcript
-ctrl+t${TAB}Todo list
-ctrl+g${TAB}External editor"
-PASSTHROUGH_TRUTH=$(printf '%s\n' "$PASSTHROUGH_TRUTH" | sort)
+ctrl+b${TAB}Background the task
+Space${TAB}Voice dictation, held
+Enter${TAB}Submit"
+PAD_TRUTH=$(printf '%s\n' "$PAD_TRUTH" | sort)
 
-# QMK writes the same pass-through keys as keycodes.
-key_for_keycode() {
-  case "$1" in
-    "LSFT(KC_TAB)") echo "shift+tab" ;;
-    "LALT(KC_P)")   echo "opt+p" ;;
-    "LALT(KC_T)")   echo "opt+t" ;;
-    "LALT(KC_O)")   echo "opt+o" ;;
-    "LCTL(KC_O)")   echo "ctrl+o" ;;
-    "LCTL(KC_T)")   echo "ctrl+t" ;;
-    "LCTL(KC_G)")   echo "ctrl+g" ;;
-    # Anything else is reported verbatim so a regression to LGUI(...) names
-    # itself in the failure instead of vanishing.
-    *) echo "$1" ;;
-  esac
+ALL_KEYS=$(printf '%s\n' "$PAD_TRUTH" | cut -f1 | tr '\n' ' ')
+
+# A Stream Deck cannot hold a key, so it cannot drive push-to-talk, and its
+# guide says so instead of listing Space. Every other guide carries all eleven.
+# Spelling the exception out here means a guide that quietly drops a key still
+# fails, which a "compare whatever each file happens to contain" check would
+# not.
+SD_KEYS=$(printf '%s\n' "$PAD_TRUTH" | cut -f1 | grep -vx 'Space' | tr '\n' ' ')
+
+subset() {
+  # $1 = space-separated keys to keep, read from stdin
+  awk -F"$TAB" -v keys="$1" '
+    BEGIN { n = split(keys, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
+    $1 in want { print }'
 }
 
-# QMK writes this repo's own bindings as keycodes too. Unlike the pass-through
-# table these are not a fixed list, so they are parsed rather than looked up:
-# LALT(KC_A) becomes alt+a. Anything else is returned verbatim, so a regression
-# to LCTL(...) or LGUI(...) names itself in the failure.
-key_for_binding_keycode() {
-  local kc="$1" inner
-  case "$kc" in
-    "LALT(KC_"?")")
-      inner="${kc#LALT(KC_}"; inner="${inner%)}"
-      printf 'opt+%s\n' "$(printf '%s' "$inner" | tr 'A-Z' 'a-z')" ;;
-    *) printf '%s\n' "$kc" ;;
-  esac
-}
+expected_for() { printf '%s\n' "$PAD_TRUTH" | subset "$1"; }
 
-# Prints one "## " section of a markdown file, heading line excluded. Used
-# where two tables in the same file share a row shape.
-md_section() {
-  awk -v h="$2" '$0 == h { s = 1; next } /^## / { if (s) exit } s' "$1"
-}
+# Guides may add local colour after an em dash — "Voice dictation, held — the
+# fat key". The part before it still has to match exactly.
+normalise() { sed 's/ — .*$//' ; }
 
-for f in "$KEYBINDINGS" "$README" "$WORK_LOUDER" "$STREAM_DECK" "$QMK_VIA"; do
+for f in "$README" "$WORK_LOUDER" "$STREAM_DECK" "$QMK_VIA"; do
   if [ ! -f "$f" ]; then
     fail "missing file: $f"
     echo "RESULT: FAILED"; exit 1
   fi
 done
-pass "all five source files exist"
-
-if ! jq empty "$KEYBINDINGS" 2>/dev/null; then
-  fail "config/keybindings.json is not valid JSON"
-  echo "RESULT: FAILED"; exit 1
-fi
-
-# ---------------------------------------------------------------- truth ----
-
-BINDING_TRUTH=""
-while IFS="$TAB" read -r key action; do
-  [ -n "$key" ] || continue
-  # One keystroke, modifier included. A space would mean a two-keystroke
-  # sequence, which no device app in these guides can send.
-  case "$key" in
-    *" "*)    fail "config/keybindings.json: \"$key\" is a two-keystroke sequence"; continue ;;
-    "alt+"?*) ;;
-    *)        fail "config/keybindings.json: \"$key\" is not an alt+ keystroke"; continue ;;
-  esac
-  if ! m=$(meaning_for_action "$action"); then
-    fail "config/keybindings.json: action $action has no meaning in this script's table — add one"
-    continue
-  fi
-  # The config must say alt+ (Claude Code's format). Every doc says opt+, which
-  # is what device configurators label the button — there is usually no `alt`
-  # key to click. Translate here so the comparison is apples to apples, and so
-  # the docs never have to carry a spelling their reader cannot find on screen.
-  BINDING_TRUTH="${BINDING_TRUTH}opt+${key#alt+}${TAB}${m}
-"
-done < <(jq -r '.bindings[].bindings | to_entries[] | "\(.key)\t\(.value)"' "$KEYBINDINGS")
-BINDING_TRUTH=$(printf '%s' "$BINDING_TRUTH" | grep -v '^$' | sort)
-
-if [ -z "$BINDING_TRUTH" ]; then
-  fail "config/keybindings.json: no alt+ bindings found"
-  echo "RESULT: FAILED"; exit 1
-fi
-pass "config/keybindings.json defines $(printf '%s\n' "$BINDING_TRUTH" | wc -l | tr -d ' ') bindings"
-
-BINDING_KEYS=$(printf '%s\n' "$BINDING_TRUTH" | cut -f1 | tr '\n' ' ')
-PASSTHROUGH_KEYS=$(printf '%s\n' "$PASSTHROUGH_TRUTH" | cut -f1 | tr '\n' ' ')
-
-# This repo's bindings and the pass-through keys are both opt+ cells, often in
-# the same table, so each check keeps only the keys it owns.
-#
-# Filtering by the truth's key set rather than by spelling is what makes this
-# safe: a key that is missing from a doc is still missing from the filtered set,
-# so check_pairs still fails. Only rows belonging to the *other* check are
-# dropped, and those are covered by their own assertion.
-only_keys() {
-  awk -F"$TAB" -v keys="$1" '
-    BEGIN { n = split(keys, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
-    $1 in want { print }
-  '
-}
+pass "all four source files exist"
 
 # ----------------------------------------------------------- extractors ----
-# Every extractor emits sorted "<key><TAB><meaning>" lines.
+# Every extractor emits sorted "<key><TAB><meaning>" lines, filtered to the
+# keys the truth table names. Filtering by key set rather than by shape is what
+# keeps unrelated tables out: the guides also carry dial assignments, off-pad
+# shortcuts, and a joystick table, several of which look identical to a parser.
 #
-# All of them require the line to be a table row, so running prose that names a
-# binding (the README says "`alt+k` is Option held with K" under "Which one are
-# you?") is skipped rather than parsed: prose has no meaning column to compare
-# against.
-#
-# A binding cell is a backticked alt+<key>. That shape is what separates these
-# rows from the pass-through rows in the same tables, which this repo spells
-# opt+... throughout. Keep the two spellings distinct or the extractors below
-# start crossing over.
-#
-# Both this repo's bindings and the pass-through keys are now spelled opt+, so
-# spelling can no longer tell them apart — it used to, and that difference was
-# itself the bug: a reader in a device app saw `alt+n` on a screen whose only
-# Option button says `opt`. The extractors therefore match any opt+ cell, and
-# check_pairs distinguishes them by which set of keys it is handed.
-BINDING_CELL='`opt[+][A-Za-z0-9]+`'
+# A key that is *missing* from a guide is still missing after filtering, so the
+# comparison below still fails. Only rows belonging to other tables are dropped.
 
-# README.md bindings: | `alt+a` | `action` | Context | Does |
-readme_bindings() {
-  awk -F'|' -v t="$TAB" -v re="$BINDING_CELL" '/^\|/ && NF==6 && $2 ~ re {
-    k=$2; m=$5
-    gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
+# A backticked keystroke: `ctrl+r`, `opt+p`, `Space`, `Enter`.
+KEY_CELL='`(ctrl|opt|shift|alt|cmd|meta)[+][A-Za-z0-9]+`|`(Space|Enter)`'
+
+# README.md and docs/qmk-via.md: | `key` | Does |
+two_col() {
+  awk -F'|' -v t="$TAB" -v re="$KEY_CELL" '/^\|/ && NF==4 && $2 ~ re {
+    k=$2; m=$3
+    gsub(/^[ \t]*`|`[ \t]*$/,"",k); gsub(/^[ \t]+|[ \t]+$/,"",m)
     print k t m
-  }' "$README" | sort
+  }' "$1"
 }
 
-# docs/work-louder-input.md carries bindings in two tables of different widths:
-# the key grid  | Row | Column | Type | `alt+a` | Does |
-# and the dial  | Dial, clockwise | `alt+j` | Next chat |
-#
-# So rather than hardcode a column index, find whichever cell holds the binding
-# and take the cell after it as the meaning. Shape-agnostic, which means adding
-# a third table later does not silently drop out of coverage.
-work_louder_bindings() {
-  awk -F'|' -v t="$TAB" -v re="$BINDING_CELL" '/^\|/ {
+# docs/work-louder-input.md carries the layout in a 5-column table and other
+# keys in 2-column tables. Rather than hardcode a column index, find whichever
+# cell holds a keystroke and take the cell after it as the meaning — so adding
+# a table later does not silently drop out of coverage.
+work_louder() {
+  awk -F'|' -v t="$TAB" -v re="$KEY_CELL" '/^\|/ {
     for (i = 2; i < NF; i++) {
       if ($i ~ re) {
         k = $i; m = $(i + 1)
-        gsub(/^[ \t]*`|`[ \t]*$/, "", k)
-        gsub(/^[ \t]+|[ \t]+$/, "", m)
+        gsub(/^[ \t]*`|`[ \t]*$/, "", k); gsub(/^[ \t]+|[ \t]+$/, "", m)
         print k t m
         break
       }
     }
-  }' "$WORK_LOUDER" | sort
+  }' "$WORK_LOUDER"
 }
 
-# docs/stream-deck.md bindings: | Does | `alt+a` |
-stream_deck_bindings() {
-  awk -F'|' -v t="$TAB" -v re="$BINDING_CELL" '/^\|/ && NF==4 && $3 ~ re {
+# docs/stream-deck.md reverses the columns: | Does | `key` |
+stream_deck() {
+  awk -F'|' -v t="$TAB" -v re="$KEY_CELL" '/^\|/ && NF==4 && $3 ~ re {
     m=$2; k=$3
-    gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
+    gsub(/^[ \t]*`|`[ \t]*$/,"",k); gsub(/^[ \t]+|[ \t]+$/,"",m)
     print k t m
-  }' "$STREAM_DECK" | sort
+  }' "$STREAM_DECK"
 }
 
-# docs/qmk-via.md bindings: | `LALT(KC_A)` | Does |, under "## Keycodes" only.
-# The pass-through table two sections down has the identical shape, so the
-# section boundary is what keeps them apart.
-qmk_via_bindings_raw() {
-  md_section "$QMK_VIA" "## Keycodes" \
-  | awk -F'|' -v t="$TAB" '/^\|/ && NF==4 && $2 ~ /`[A-Z]+[(]KC_[A-Z0-9_]+[)]`/ {
-      k=$2; m=$3
-      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-      gsub(/^[ \t]+|[ \t]+$/,"",m)
-      print k t m
-    }'
+# docs/qmk-via.md writes keystrokes as QMK keycodes. Anything unrecognised is
+# returned verbatim so a regression to LGUI(...) names itself in the failure
+# rather than vanishing from the comparison.
+keycode_to_key() {
+  case "$1" in
+    "KC_SPACE") echo "Space" ;;
+    "KC_ENTER") echo "Enter" ;;
+    "LSFT(KC_TAB)") echo "shift+tab" ;;
+    "LCTL(KC_"?")") k="${1#LCTL(KC_}"; echo "ctrl+$(echo "${k%)}" | tr 'A-Z' 'a-z')" ;;
+    "LALT(KC_"?")") k="${1#LALT(KC_}"; echo "opt+$(echo "${k%)}" | tr 'A-Z' 'a-z')" ;;
+    *) echo "$1" ;;
+  esac
 }
 
-qmk_via_bindings() {
+qmk_via() {
   local kc m
   while IFS="$TAB" read -r kc m; do
     [ -n "$kc" ] || continue
-    printf '%s%s%s\n' "$(key_for_binding_keycode "$kc")" "$TAB" "$m"
-  done < <(qmk_via_bindings_raw) | sort
-}
-
-# Pass-through rows are recognised by a backticked keystroke that carries a
-# modifier. Matching the shape rather than the expected list is deliberate: a
-# regression to `cmd+p` still gets extracted, and so gets reported as wrong
-# rather than silently skipped.
-MODIFIED_KEY_SHAPE='`(shift|ctrl|opt|alt|cmd|meta|super|gui)[+][A-Za-z0-9]+`'
-
-# README.md pass-through: | `opt+p` | Model picker |
-readme_passthrough() {
-  awk -F'|' -v t="$TAB" -v re="$MODIFIED_KEY_SHAPE" '/^\|/ && NF==4 && $2 ~ re {
-    k=$2; m=$3
-    gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-    gsub(/^[ \t]+|[ \t]+$/,"",m)
-    print k t m
-  }' "$README" | sort
-}
-
-# docs/work-louder-input.md holds pass-through keys in two tables now: the
-# 5-column layout table for the two that earned a pad key, and a 2-column table
-# for the five deliberately left on the keyboard. Gather both.
-#
-# Then keep only keys the truth set names. The layout table also carries
-# pad-specific keys — Escape, ctrl+c, Space, Enter — which are not pass-through
-# bindings at all, and ctrl+c matches the modified-keystroke shape, so filtering
-# by the truth keys rather than by shape is what keeps this exact.
-work_louder_passthrough() {
-  truth_keys=$(printf '%s\n' "$PASSTHROUGH_TRUTH" | cut -f1 | tr '\n' ' ')
-  {
-    awk -F'|' -v t="$TAB" '
-    /^\|/ && NF==7 {
-      type=$4; gsub(/^[ \t]+|[ \t]+$/,"",type)
-      if (type != "Key") next
-      k=$5; m=$6
-      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-      gsub(/^[ \t]+|[ \t]+$/,"",m)
-      print k t m
-    }' "$WORK_LOUDER"
-    awk -F'|' -v t="$TAB" '
-    /^\|/ && NF==4 {
+    printf '%s%s%s\n' "$(keycode_to_key "$kc")" "$TAB" "$m"
+  done < <(awk -F'|' -v t="$TAB" '/^\|/ && NF==4 && $2 ~ /`[A-Z_]+([(]KC_[A-Z0-9_]+[)])?`/ {
       k=$2; m=$3
-      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-      gsub(/^[ \t]+|[ \t]+$/,"",m)
+      gsub(/^[ \t]*`|`[ \t]*$/,"",k); gsub(/^[ \t]+|[ \t]+$/,"",m)
       print k t m
-    }' "$WORK_LOUDER"
-  } | awk -F"$TAB" -v keys="$truth_keys" '
-      BEGIN { n = split(keys, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
-      $1 in want { print }
-    ' | sort -u
+    }' "$QMK_VIA")
 }
 
-# docs/qmk-via.md pass-through: | `LALT(KC_P)` | Model picker |, scoped to its
-# own section for the same reason the bindings extractor above is.
-qmk_via_passthrough_raw() {
-  md_section "$QMK_VIA" "## Pass-through keys" \
-  | awk -F'|' -v t="$TAB" '/^\|/ && NF==4 && $2 ~ /`[A-Z]+[(]KC_[A-Z0-9_]+[)]`/ {
-      k=$2; m=$3
-      gsub(/^[ \t]*`|`[ \t]*$/,"",k)
-      gsub(/^[ \t]+|[ \t]+$/,"",m)
-      print k t m
-    }'
-}
-
-qmk_via_passthrough() {
-  local kc m
-  while IFS="$TAB" read -r kc m; do
-    [ -n "$kc" ] || continue
-    printf '%s%s%s\n' "$(key_for_keycode "$kc")" "$TAB" "$m"
-  done < <(qmk_via_passthrough_raw) | sort
-}
-
-# docs/stream-deck.md pass-through is a prose list with no meanings attached,
-# so only the key set is comparable. Noted in the assertion name.
-stream_deck_passthrough_keys() {
-  awk '/^Pass-through buttons are plain Hotkey actions:/ {p=1}
-       p {print; if (/\.[ \t]*$/) exit}' "$STREAM_DECK" \
-    | grep -oE '`[^`]+`' | tr -d '`' | sort
-}
-
-# ---------------------------------------------------------------- checks ----
+# -------------------------------------------------------------- checks ----
 
 check_pairs() {
   local name="$1" actual="$2" expected="$3" missing extra
-
   if [ -z "$actual" ]; then
     fail "$name: extracted nothing at all — the table shape changed, or the extractor is broken"
     return
   fi
-
   missing=$(comm -23 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual"))
   extra=$(comm -13 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual"))
-
   if [ -n "$missing" ] || [ -n "$extra" ]; then
     fail "$name: does not match the source of truth"
-    if [ -n "$missing" ]; then
-      printf '%s\n' "$missing" | sed "s/$TAB/  =  /" | sed 's/^/        expected: /'
-    fi
-    if [ -n "$extra" ]; then
-      printf '%s\n' "$extra" | sed "s/$TAB/  =  /" | sed 's/^/        found:    /'
-    fi
+    [ -n "$missing" ] && printf '%s\n' "$missing" | sed "s/$TAB/  =  /" | sed 's/^/        expected: /'
+    [ -n "$extra" ]   && printf '%s\n' "$extra"   | sed "s/$TAB/  =  /" | sed 's/^/        found:    /'
   else
     pass "$name: $(printf '%s\n' "$actual" | wc -l | tr -d ' ') key/meaning pairs agree"
   fi
 }
 
-check_keyset() {
-  local name="$1" actual="$2" expected="$3" diffout
-  if [ -z "$actual" ]; then
-    fail "$name: extracted nothing at all"
-    return
-  fi
-  diffout=$(diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual"))
-  if [ -n "$diffout" ]; then
-    fail "$name: key set differs from the pass-through table"
-    printf '%s\n' "$diffout" | sed 's/^/        /'
-  else
-    pass "$name: $(printf '%s\n' "$actual" | wc -l | tr -d ' ') keys agree"
-  fi
-}
-
-echo "-- bindings"
-check_pairs "README.md bindings"                 "$(readme_bindings | only_keys "$BINDING_KEYS")"      "$BINDING_TRUTH"
-check_pairs "docs/work-louder-input.md bindings" "$(work_louder_bindings | only_keys "$BINDING_KEYS")" "$BINDING_TRUTH"
-check_pairs "docs/stream-deck.md bindings"       "$(stream_deck_bindings | only_keys "$BINDING_KEYS")" "$BINDING_TRUTH"
-check_pairs "docs/qmk-via.md bindings"           "$(qmk_via_bindings | only_keys "$BINDING_KEYS")"     "$BINDING_TRUTH"
-
-echo "-- pass-through keys"
-check_pairs "README.md pass-through"                 "$(readme_passthrough | only_keys "$PASSTHROUGH_KEYS")"      "$PASSTHROUGH_TRUTH"
-check_pairs "docs/work-louder-input.md pass-through" "$(work_louder_passthrough | only_keys "$PASSTHROUGH_KEYS")" "$PASSTHROUGH_TRUTH"
-check_pairs "docs/qmk-via.md pass-through"           "$(qmk_via_passthrough | only_keys "$PASSTHROUGH_KEYS")"     "$PASSTHROUGH_TRUTH"
-check_keyset "docs/stream-deck.md pass-through (keys only; the prose list carries no meanings)" \
-  "$(stream_deck_passthrough_keys)" \
-  "$(printf '%s\n' "$PASSTHROUGH_TRUTH" | cut -f1 | sort)"
+echo "-- pad layout"
+check_pairs "README.md"                 "$(two_col "$README" | normalise | subset "$ALL_KEYS" | sort -u)" "$(expected_for "$ALL_KEYS")"
+check_pairs "docs/work-louder-input.md" "$(work_louder   | normalise | subset "$ALL_KEYS" | sort -u)" "$(expected_for "$ALL_KEYS")"
+check_pairs "docs/qmk-via.md"           "$(qmk_via       | normalise | subset "$ALL_KEYS" | sort -u)" "$(expected_for "$ALL_KEYS")"
+check_pairs "docs/stream-deck.md"       "$(stream_deck   | normalise | subset "$SD_KEYS"  | sort -u)" "$(expected_for "$SD_KEYS")"
 
 echo "-- karabiner example"
-KARA=$(awk '/^## Karabiner-Elements/{s=1} s' "$STREAM_DECK" \
+KARA=$(awk '/^### Mapping a spare key/{s=1} s' "$STREAM_DECK" \
        | awk '/^```json/{f=1;next} /^```/{if(f)exit} f')
 if [ -z "$KARA" ] || ! printf '%s' "$KARA" | jq empty 2>/dev/null; then
   fail "docs/stream-deck.md: could not parse the Karabiner manipulator as JSON"
@@ -407,11 +199,25 @@ else
     pass "docs/stream-deck.md: Karabiner sends one left_option keystroke"
   fi
 
-  if printf '%s\n' "$BINDING_TRUTH" | cut -f1 | grep -qxF -- "opt+$K_CODE"; then
-    pass "docs/stream-deck.md: Karabiner key \"$K_CODE\" is the binding \"opt+$K_CODE\""
+  if printf '%s\n' "$PAD_TRUTH" | cut -f1 | grep -qxF -- "opt+$K_CODE"; then
+    pass "docs/stream-deck.md: Karabiner key \"$K_CODE\" is the documented \"opt+$K_CODE\""
   else
-    fail "docs/stream-deck.md: Karabiner key \"$K_CODE\" is not one of the documented bindings"
+    fail "docs/stream-deck.md: Karabiner key \"$K_CODE\" is not one of the documented keys"
   fi
+fi
+
+# The jump script is referenced by three guides and the README by absolute
+# installed path. A rename that updated the script but not its callers would
+# leave every one of those instructions pointing at nothing.
+echo "-- jump script path"
+JUMP_REFS=$(grep -rlF '.claude/hooks/jump-to-attention.sh' \
+              "$README" "$WORK_LOUDER" "$STREAM_DECK" "$QMK_VIA" 2>/dev/null | wc -l | tr -d ' ')
+if [ ! -f "$ROOT/scripts/jump-to-attention.sh" ]; then
+  fail "scripts/jump-to-attention.sh is missing but the docs reference it"
+elif [ "$JUMP_REFS" -lt 2 ]; then
+  fail "only $JUMP_REFS doc(s) reference the installed jump script path"
+else
+  pass "jump script exists and $JUMP_REFS docs reference its installed path"
 fi
 
 if [ "$FAILED" -eq 0 ]; then echo "RESULT: PASSED"; exit 0; fi

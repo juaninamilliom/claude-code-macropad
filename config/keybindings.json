@@ -3,18 +3,10 @@
   "$docs": "https://code.claude.com/docs/en/keybindings",
   "bindings": [
     {
-      "context": "Global",
-      "bindings": {
-        "alt+k": "strip:previous",
-        "alt+j": "strip:next",
-        "alt+n": "strip:new",
-        "alt+s": "strip:toggle"
-      }
-    },
-    {
       "context": "Chat",
       "bindings": {
-        "alt+a": "chat:attentionDown"
+        "alt+k": "chat:killAgents",
+        "alt+z": "chat:undo"
       }
     }
   ]

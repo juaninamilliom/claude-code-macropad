@@ -1,11 +1,21 @@
 #!/bin/bash
 # Verifies notify-ready.sh names the project from the hook payload, so that
 # three concurrent sessions produce three distinguishable notifications.
+#
+# The hook also writes an attention marker, which is not what this file tests —
+# tests/test-attention.sh covers that. But dry-run mode suppresses the
+# notification, not the marker, so without the redirect below every run of this
+# suite would deposit files in the reader's real ~/.claude/macropad. Redirect
+# first, assert afterwards.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$ROOT/hooks/notify-ready.sh"
 FAILED=0
+
+TMPSTATE=$(mktemp -d)
+trap 'rm -rf "$TMPSTATE"' EXIT
+export CLAUDE_MACROPAD_STATE_DIR="$TMPSTATE"
 
 # Asserts stdout and the exit status. Claude Code reads a hook's exit code —
 # a non-zero exit is a signal, not a detail — so a run that prints the right
