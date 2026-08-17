@@ -54,22 +54,13 @@ on first run), and an existing hooks directory:
 mkdir -p ~/.claude/hooks
 ```
 
-Three things to know before you paste the block.
+Two things to know before you paste the block.
 
-**Run it once.** The merge in step 2 appends to the hooks you already have. Run
-it twice and you get two `notify-ready.sh` entries under `Stop`, which means two
-notifications per turn. If you have installed before, remove the old entries
-first rather than re-running.
-
-**Do not overwrite an existing backup.** Step 0 writes fixed `.bak` names. On a
-second run that replaces your pristine pre-install backups with already-modified
-files. If either path exists, use timestamped names instead:
-
-```bash
-for f in ~/.claude/settings.json ~/.claude/keybindings.json; do
-  if [ -e "$f" ]; then cp "$f" "$f.bak-$(date +%Y%m%d-%H%M%S)"; fi
-done
-```
+**Re-running it is safe.** Step 0's backups are timestamped, so a second run
+never overwrites the first. Step 2's merge is idempotent: it drops any hook entry
+already pointing at our script before appending, so you get one `notify-ready.sh`
+per event no matter how many times you run it. Hooks you added yourself are left
+alone.
 
 **Step 2 is chained.** Its `cp` and its `jq` merge are joined with `&&`, so a
 failed `cp` stops the merge and nothing gets registered that was not installed.
@@ -83,37 +74,46 @@ Running the block from the wrong directory is a safe failure too: the merge
 cannot open `config/hooks.snippet.json`, exits non-zero, and leaves your
 settings untouched.
 
-Two smaller notes. `cp hooks/*.sh ~/.claude/hooks/` overwrites any same-named
+One smaller note. `cp hooks/*.sh ~/.claude/hooks/` overwrites any same-named
 script already there, and `chmod +x ~/.claude/hooks/*.sh` marks every script in
-that directory executable, not only ours. Step 2 also writes to a fixed
-`/tmp/s.json`; on a shared machine, substitute `$(mktemp)`.
+that directory executable, not only ours.
 
 ```bash
 # 0. Back up both files this installs over. Not optional.
-#    Skips whichever you do not have yet.
+#    Never overwrites an existing backup, even two runs in the same second.
+#    Skips whichever file you do not have yet.
+TS=$(date +%Y%m%d-%H%M%S)
 for f in ~/.claude/settings.json ~/.claude/keybindings.json; do
-  if [ -e "$f" ]; then cp "$f" "$f.bak"; fi
+  [ -e "$f" ] || continue
+  b="$f.bak-$TS"; i=1
+  while [ -e "$b" ]; do b="$f.bak-$TS-$i"; i=$((i + 1)); done
+  cp "$f" "$b"
 done
 
 # 1. Keybindings. Overwrites the file — step 0 backed it up.
-#    If you already had bindings, merge yours back in from the .bak afterwards.
+#    If you already had bindings, merge yours back in from the .bak-* copy.
 cp config/keybindings.json ~/.claude/keybindings.json
 
-# 2. Hooks
+# 2. Hooks. The merge is idempotent — safe to re-run.
+TMP=$(mktemp)
 cp hooks/*.sh ~/.claude/hooks/ && chmod +x ~/.claude/hooks/*.sh && \
-jq -s '.[0] as $cur | .[1] as $new | $cur * $new
+jq -s '.[0] as $cur | .[1] as $new
+  | $cur * $new
   | .hooks = (reduce ($new.hooks | keys[]) as $k (($cur.hooks // {});
-      .[$k] = (($cur.hooks[$k] // []) + $new.hooks[$k])))' \
+      ($new.hooks[$k] | [.[].hooks[].command]) as $ours
+      | .[$k] = ([(($cur.hooks[$k] // [])[])
+                  | select(([.hooks[].command] - $ours) != [])]
+                 + $new.hooks[$k])))' \
   ~/.claude/settings.json config/hooks.snippet.json \
-  > /tmp/s.json && [ -s /tmp/s.json ] && jq -e '.hooks' /tmp/s.json >/dev/null \
-  && mv /tmp/s.json ~/.claude/settings.json
+  > "$TMP" && [ -s "$TMP" ] && jq -e '.hooks' "$TMP" >/dev/null \
+  && mv "$TMP" ~/.claude/settings.json
 
 # 3. Voice (terminal only)
 # run inside Claude Code:  /voice hold
 ```
 
-Then confirm the merge landed. Check the commands, not just the event names — a
-duplicate install shows up in the commands and is invisible in the names:
+Then confirm the merge landed. Print the commands rather than the event names —
+the names tell you an event exists, not what it runs:
 
 ```bash
 jq -r '.hooks | to_entries[] | "\(.key): \(.value[].hooks[].command)"' ~/.claude/settings.json
