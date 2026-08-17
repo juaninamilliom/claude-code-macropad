@@ -23,20 +23,39 @@ The two config files are shaped differently on purpose. `keybindings.json` is a
 complete file you can copy over; `settings.json` holds configuration this repo
 must not replace, so the hooks ship as a fragment that gets merged in.
 
-## It works without a macropad
+## Which one are you?
 
-Every chord here is typeable. `ctrl+x` then `[` is two keystrokes on any
-keyboard. The hooks are shell scripts and do not know what a macropad is.
-Install the keybindings and the hooks and you have all of it.
+Both paths install the same two files. They differ only in what presses the keys.
 
-What a pad adds is a labeled key you can hit without looking, for actions that
-otherwise have no key at all. That is the entire pitch. If that is worth a key
-on your desk, the device guides below tell you how to program one.
+**A — You have a macropad.** Install below, then program the pad from your
+device's guide. You get labeled, eyes-free keys for actions that otherwise have
+no key at all. Start here: [with a macropad](#path-a--with-a-macropad).
 
-Two limits, before you spend fifteen minutes on this: **nothing here can light up
-your pad's LEDs**, and **no guide here can program your pad for you** — every
-device is configured by hand in its own app. Both are explained under
+**B — You do not.** Install below and you are done. Every chord is typeable —
+`ctrl+x` then `[` is two keystrokes on any keyboard — and you can also bind them
+to spare function keys. See [keyboard only](#path-b--keyboard-only).
+
+Two limits worth knowing before either path: **nothing here can light up a pad's
+LEDs**, and **no guide here can program your pad for you** — every device is
+configured by hand in its own app. Both are explained under
 [Limitations](#limitations).
+
+## Terminal or desktop app?
+
+Claude Code runs in a terminal and as a desktop app. They share `~/.claude/`, so
+configuration installed once applies to both. What differs is voice.
+
+| | Terminal | Desktop app |
+| --- | --- | --- |
+| Keybindings and chords | yes | not yet verified |
+| Notification hooks | yes | yes — `settings.json` is shared |
+| Turning voice **on** (`/voice hold`) | **yes, only here** | no — the command refuses with *"Run it from the Claude Code terminal instead"* |
+| Using voice once enabled | yes | not yet verified |
+
+**Enable voice from a terminal even if you live in the desktop app.** The setting
+is written to `settings.json`, which both read. The two "not yet verified" rows
+are honest gaps, not hedging — see [what has and has not been
+tested](#tested-against).
 
 ## Quickstart
 
@@ -54,29 +73,10 @@ on first run), and an existing hooks directory:
 mkdir -p ~/.claude/hooks
 ```
 
-Two things to know before you paste the block.
-
-**Re-running it is safe.** Step 0's backups are timestamped, so a second run
-never overwrites the first. Step 2's merge is idempotent: it drops any hook entry
-already pointing at our script before appending, so you get one `notify-ready.sh`
-per event no matter how many times you run it. Hooks you added yourself are left
-alone.
-
-**Step 2 is chained.** Its `cp` and its `jq` merge are joined with `&&`, so a
-failed `cp` stops the merge and nothing gets registered that was not installed.
-That is what the `mkdir -p` above is for. Verify the script landed anyway:
-
-```bash
-ls ~/.claude/hooks/notify-ready.sh
-```
-
-Running the block from the wrong directory is a safe failure too: the merge
-cannot open `config/hooks.snippet.json`, exits non-zero, and leaves your
-settings untouched.
-
-One smaller note. `cp hooks/*.sh ~/.claude/hooks/` overwrites any same-named
-script already there, and `chmod +x ~/.claude/hooks/*.sh` marks every script in
-that directory executable, not only ours.
+Paste the whole block. It is safe to re-run — backups are timestamped and the
+hook merge is idempotent. If you want to know why it is shaped the way it is,
+that is in [how the install behaves](#how-the-install-behaves) below; you do not
+need it to install.
 
 ```bash
 # 0. Back up both files this installs over. Not optional.
@@ -133,6 +133,65 @@ event names keep their original position, so that order will not hold — count
 the commands rather than matching the listing. If `notify-ready.sh` appears
 twice under `Stop`, the merge ran twice — delete the extra entry.
 
+## Path A — with a macropad
+
+Nothing pad-specific gets installed. Your pad sends ordinary keystrokes; the
+config above is what makes Claude Code answer them. So the remaining work is
+entirely in your device's own app.
+
+| Your device | Guide |
+| --- | --- |
+| Work Louder Creator Micro 2 | [`docs/work-louder-input.md`](docs/work-louder-input.md) — key by key, in the Input app |
+| Any VIA-compatible board | [`docs/qmk-via.md`](docs/qmk-via.md) — VIA's macro editor |
+| Stream Deck, Karabiner | [`docs/stream-deck.md`](docs/stream-deck.md) |
+
+Budget about fifteen minutes of clicking. Each guide gives you a table of what
+every key sends, and the three assignment types that matter: a plain **Key** for
+things like `Space`, a **Multi Action** for the two-keystroke chords, and a
+**Smart Action** if your app has one, for launching Claude.
+
+The layout is built so the whole loop works without touching the keyboard: hold
+the big key to dictate, release, press the key beside it to send. Escape declines
+a permission prompt, `ctrl+c` stops a runaway turn, and the dial cycles sessions.
+
+## Path B — keyboard only
+
+You are already done. The five chords work as typed keystrokes — `ctrl+x`,
+release, then the second key. See [Chords](#chords) for what they do.
+
+If you would rather have single keys, map spare function keys to the chords with
+Karabiner-Elements. [`docs/stream-deck.md`](docs/stream-deck.md) has a working
+manipulator for exactly that, including where it nests in `karabiner.json`.
+
+Voice needs no binding at all: hold `Space` with the input empty, after running
+`/voice hold` once in a terminal.
+
+## How the install behaves
+
+Skip this unless something looks wrong or you want to understand the commands.
+
+**Re-running is safe.** Step 0's backups are timestamped with a collision loop,
+so a second run never overwrites the first — three runs in the same second
+produce three distinct backups. Step 2's merge drops any hook entry already
+pointing at our script before appending, so you get one `notify-ready.sh` per
+event however many times you run it. Hooks you added yourself are left alone.
+
+**Step 2 is chained.** Its `cp` and its `jq` merge are joined with `&&`, so a
+failed `cp` stops the merge and nothing gets registered that was not installed.
+That is what the `mkdir -p` is for. Verify the script landed anyway:
+
+```bash
+ls ~/.claude/hooks/notify-ready.sh
+```
+
+Running the block from the wrong directory is a safe failure too: the merge
+cannot open `config/hooks.snippet.json`, exits non-zero, and leaves your settings
+untouched.
+
+One smaller note: `cp hooks/*.sh ~/.claude/hooks/` overwrites any same-named
+script already there, and `chmod +x ~/.claude/hooks/*.sh` marks every script in
+that directory executable, not only ours.
+
 ### Why step 2 is not the obvious one-liner
 
 The natural version of that merge is `jq -s '.[0] * .[1]'`, and it is wrong
@@ -178,18 +237,26 @@ but not an upstream rename.
 If you have rebound tmux's or screen's prefix to `ctrl+x`, change the prefix in
 `config/keybindings.json` and in your device configuration. The two must match.
 
-### Voice is not a chord
+### Voice gets a pad key too
 
-Voice dictation is plain `Space`, held. It is not a chord and it needs no entry
-in `keybindings.json` — `voice:pushToTalk` is already bound to `Space` in the
-`Chat` context.
+Dictation belongs on the pad like everything else — ideally the biggest key you
+have, since you hold it while you talk. It is simply the one key that is **not** a
+chord: assign it plain `Space`.
 
-It is off until you turn it on. Run `/voice hold` inside Claude Code, in a
-terminal. Until you do, holding `Space` types spaces and nothing indicates why.
+That is a mechanical requirement, not a shortcut. Hold-to-talk is defined by the
+*release*: you hold, speak, and let go to end the utterance. A macro or a Multi
+Action fires and completes instantly, so it can never be held. A plain `Space`
+key assignment passes your physical hold straight through. Nothing goes in
+`keybindings.json` — `voice:pushToTalk` is already bound to `Space` in the `Chat`
+context.
 
-On a pad, the voice key must be an ordinary `Space` key assignment — not a
-macro, not a chord. Hold-to-talk is defined by the release, and a macro
-completes immediately instead of staying held.
+**Turn it on first.** Run `/voice hold` inside Claude Code, in a terminal. Until
+you do, holding the key types spaces and nothing tells you why.
+
+One device limitation: a Stream Deck cannot do this. It sends discrete
+press-and-release events and cannot hold a key for as long as you hold the
+button. Use `/voice tap` there instead —
+[`docs/stream-deck.md`](docs/stream-deck.md) covers it.
 
 ## Pass-through keys
 
@@ -210,17 +277,6 @@ nothing needs to: a pad key that sends the combination works as-is.
 which on macOS is the same modifier; they are **not** Command. Sending `cmd+…`
 instead does not simply fail — in iTerm2, `cmd+t` opens a tab and `cmd+o` opens
 a file dialog.
-
-## Device guides
-
-| Guide | Covers |
-| --- | --- |
-| [`docs/work-louder-input.md`](docs/work-louder-input.md) | Work Louder Creator Micro 2, key by key, in the Input app |
-| [`docs/qmk-via.md`](docs/qmk-via.md) | Any VIA-compatible board, using VIA's macro editor |
-| [`docs/stream-deck.md`](docs/stream-deck.md) | Stream Deck and Karabiner-Elements |
-
-The Stream Deck guide explains why the voice key does not work on that device
-and what to do instead.
 
 ## Limitations
 
