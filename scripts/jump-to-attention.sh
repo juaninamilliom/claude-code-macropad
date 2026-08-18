@@ -116,11 +116,19 @@ run_osa() {
 notify() {
     [ "$DRY_RUN" = "1" ] && return 0
     # A notification is the nicer signal but needs this app to be allowed in
-    # Notification settings, which it will not be the first time. The sound
-    # needs no permission at all, and "the key did something" is the part worth
+    # Notification settings, which it will not be the first time. The beep needs
+    # no permission at all, and "the key did something" is the part worth
     # guaranteeing: without it, a press with nothing to jump to is
     # indistinguishable from a key that is not wired up.
-    afplay /System/Library/Sounds/Tink.aiff >/dev/null 2>&1 &
+    #
+    # `beep`, not `afplay`. afplay works, but it is a media player, and macOS
+    # asks apps that touch media for media-library access — a dialog naming the
+    # bare Claude Code binary ("2.1.234", since the versioned executable carries
+    # no Info.plist for TCC to read a name from) is a baffling thing to be shown
+    # by a key that switches terminal windows. beep is the system alert sound
+    # and asks for nothing. Whether afplay was truly the trigger was never
+    # confirmed; this costs nothing and removes the question.
+    osascript -e 'beep' >/dev/null 2>&1 &
     osascript \
         -e 'on run {msg, ttl}' \
         -e 'display notification msg with title ttl' \
