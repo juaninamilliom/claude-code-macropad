@@ -52,25 +52,56 @@ fi
 ATTENTION_DIR=$(macropad_attention_dir)
 DRY_RUN="${CLAUDE_MACROPAD_DRY_RUN:-0}"
 
-# Every run records what it decided, overwriting the last. Two lines of disk in
-# exchange for never again having to rebuild an app to find out what happened.
+# Every run appends what it decided. Append, not overwrite: a macropad press is
+# tested by pressing it several times, and a log that keeps only the last run
+# erases the comparison that makes the trace readable.
 #
-# Rebuilding is the thing worth avoiding: osacompile re-signs the bundle, macOS
-# reads that as a different application, and its Automation permission for
-# iTerm2 goes back to unasked. The next launch then blocks on a permission
-# dialog that a macropad press gives you no reason to look for — the key simply
-# stops working. Debugging by rebuilding the app therefore breaks the thing it
-# is trying to measure.
-LOG="${CLAUDE_MACROPAD_STATE_DIR:-$HOME/.claude/macropad}/last-run.log"
+# The first line is written before anything that can block, so an empty tail
+# means "the app never ran" — a pad or Smart Action problem — while a start line
+# with nothing after it means "the app ran and hung", which is almost always an
+# Automation permission prompt waiting off-screen. Those two look identical from
+# the keyboard and need completely different fixes.
+#
+# Rebuilding the app to add logging is the thing to avoid: osacompile re-signs
+# the bundle, macOS reads that as a different application, and its Automation
+# permission for iTerm2 reverts to unasked. The next launch blocks on a dialog a
+# keypress gives you no reason to look for. Debugging that way breaks the thing
+# it is measuring, which is why this lives in the script instead.
+LOG="${CLAUDE_MACROPAD_STATE_DIR:-$HOME/.claude/macropad}/log"
 dbg() {
     [ "$DRY_RUN" = "1" ] && return 0
-    printf '%s\n' "$*" >> "$LOG" 2>/dev/null
+    printf '%s  %s\n' "$(date '+%H:%M:%S')" "$*" >> "$LOG" 2>/dev/null
 }
 if [ "$DRY_RUN" != "1" ]; then
     mkdir -p "$(dirname "$LOG")" 2>/dev/null
-    : > "$LOG" 2>/dev/null
-    dbg "$(date '+%H:%M:%S') argv=${*:-<none>}"
+    # Keep it bounded rather than letting a key press grow a file forever.
+    if [ -f "$LOG" ] && [ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt 400 ]; then
+        tail -200 "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG" 2>/dev/null
+    fi
+    # Who launched us: an app bundle (a pad press) or a shell (me testing it)?
+    # The distinction is the first thing worth knowing and the easiest to lose.
+    dbg "---- ${*:-<no args>} launched by $(ps -o comm= -p "$PPID" 2>/dev/null | sed 's|.*/||')"
 fi
+
+# osascript with a deadline. Without one, an Automation permission prompt blocks
+# the script forever and the key just never does anything — no error, no exit,
+# nothing in the log after the start line. With one, that state names itself.
+run_osa() {
+    local secs="$1"; shift
+    local out tmp rc
+    tmp=$(mktemp 2>/dev/null) || { osascript "$@" 2>/dev/null; return $?; }
+    osascript "$@" > "$tmp" 2>/dev/null &
+    local pid=$! i=0
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$((i + 1))
+        [ "$i" -gt $((secs * 10)) ] && { kill -9 "$pid" 2>/dev/null; rm -f "$tmp"; return 124; }
+        sleep 0.1
+    done
+    wait "$pid" 2>/dev/null; rc=$?
+    out=$(cat "$tmp" 2>/dev/null); rm -f "$tmp"
+    printf '%s' "$out"
+    return $rc
+}
 
 notify() {
     [ "$DRY_RUN" = "1" ] && return 0
@@ -113,9 +144,47 @@ current_session() {
         return 0
     fi
     [ "$DRY_RUN" = "1" ] && return 0
-    osascript \
-        -e 'tell application "iTerm2" to return id of current session of current tab of current window' \
-        2>/dev/null
+    local out rc
+    # Two readings, because they can disagree and the difference is the bug.
+    #
+    # `current window` is iTerm2's own pointer, and AppleScript moves it: a
+    # script that selects a window sets it, whether or not the user ever looked
+    # there. `frontmost of w` is the window macOS actually has in front, which
+    # is where the user is. Prefer the OS truth and fall back to iTerm2's
+    # pointer when no window is frontmost, which is what happens while another
+    # application — such as the app a macropad key launches — holds focus.
+    out=$(run_osa 5 -e 'tell application "iTerm2"' \
+        -e '  repeat with w in windows' \
+        -e '    if frontmost of w then' \
+        -e '      return (id of current session of current tab of w)' \
+        -e '    end if' \
+        -e '  end repeat' \
+        -e '  return (id of current session of current tab of current window)' \
+        -e 'end tell')
+    rc=$?
+    if [ "$rc" = "124" ]; then
+        dbg "current_session TIMED OUT after 5s — an Automation permission prompt is probably waiting"
+        return 0
+    fi
+    printf '%s' "$out"
+}
+
+# A one-line picture of every iTerm2 window: which session it shows and whether
+# macOS has it in front. Logged before and after focusing so the log answers
+# "did the window actually move?" rather than only "did the script think so?",
+# which is the question two rounds of this were unable to settle.
+window_table() {
+    [ "$DRY_RUN" = "1" ] && return 0
+    run_osa 5 -e 'tell application "iTerm2"' \
+        -e '  set out to ""' \
+        -e '  repeat with wi from 1 to (count windows)' \
+        -e '    set w to window wi' \
+        -e '    repeat with s in sessions of (current tab of w)' \
+        -e '      set out to out & (tty of s) & "/" & (frontmost of w) & " "' \
+        -e '    end repeat' \
+        -e '  end repeat' \
+        -e '  return out' \
+        -e 'end tell'
 }
 
 # Every marker, longest-waiting first, as "epoch<TAB>project<TAB>uuid<TAB>tty".
@@ -146,10 +215,27 @@ fi
 
 # Focus an iTerm2 session by its id. Returns "ok" or "notfound"; anything else
 # means iTerm2 was not reachable at all.
+#
+# `activate` comes FIRST, and the order is the whole fix.
+#
+# Selecting the window and then activating looks natural and is wrong: activate
+# brings iTerm2 forward showing its own key window, which overrides the
+# selection that just happened. It only misbehaves when another application is
+# frontmost — and a macropad press always runs while the app it launched is
+# frontmost, so it failed exactly where it mattered and worked in every shell
+# test. Worse, the AppleScript still returns "ok": the selection did happen, it
+# was simply undone a moment later.
+#
+# Reproduced by making Finder frontmost and raising a background iTerm2 window:
+# select-then-activate reports ok and moves nothing; activate-then-select moves
+# the window. Activating first means nothing re-fronts after the selection.
 focus_iterm() {
-    osascript \
+    local out rc
+    out=$(run_osa 8 \
         -e 'on run {sid}' \
         -e 'tell application "iTerm2"' \
+        -e '  activate' \
+        -e '  delay 0.2' \
         -e '  repeat with w in windows' \
         -e '    repeat with t in tabs of w' \
         -e '      repeat with s in sessions of t' \
@@ -157,7 +243,6 @@ focus_iterm() {
         -e '          select w' \
         -e '          select t' \
         -e '          select s' \
-        -e '          activate' \
         -e '          return "ok"' \
         -e '        end if' \
         -e '      end repeat' \
@@ -166,7 +251,14 @@ focus_iterm() {
         -e 'end tell' \
         -e 'return "notfound"' \
         -e 'end run' \
-        "$1" 2>/dev/null
+        "$1")
+    rc=$?
+    if [ "$rc" = "124" ]; then
+        dbg "focus_iterm TIMED OUT after 8s — an Automation permission prompt is probably waiting"
+        printf 'timeout'
+        return 0
+    fi
+    printf '%s' "$out"
 }
 
 # ------------------------------------------------------------------ cycle ---
@@ -204,7 +296,8 @@ claude_sessions() {
     # tab is iTerm2's own tab class, so it coerces to the literal string "tab"
     # and every line comes out unparseable — silently, since the result is still
     # a well-formed string.
-    osascript \
+    local raw rc
+    raw=$(run_osa 8 \
         -e 'tell application "iTerm2"' \
         -e '  set out to ""' \
         -e '  repeat with w in windows' \
@@ -215,7 +308,13 @@ claude_sessions() {
         -e '    end repeat' \
         -e '  end repeat' \
         -e '  return out' \
-        -e 'end tell' 2>/dev/null \
+        -e 'end tell')
+    rc=$?
+    if [ "$rc" = "124" ]; then
+        dbg "claude_sessions TIMED OUT after 8s — an Automation permission prompt is probably waiting"
+        return 0
+    fi
+    printf '%s\n' "$raw" \
     | awk -F'\t' -v list="$ttys" '
         BEGIN { n = split(list, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") want[a[i]] = 1 }
         NF >= 2 && ($2 in want) { print $2 "\t" $1 }' \
@@ -319,8 +418,11 @@ if [ "${1:-}" = "--next" ]; then
             printf 'cycle\t%s\n' "$NEXT"
             exit 0
         fi
+        dbg "windows before: $(window_table)"
         RESULT=$(focus_iterm "$NEXT")
         dbg "focus=${RESULT:-<empty: iTerm2 unreachable, or an Automation prompt is waiting>}"
+        sleep 1
+        dbg "windows after:  $(window_table)"
         if [ "$RESULT" = "ok" ]; then
             # Arriving counts as having seen it, same as the jump key.
             rm -f "$ATTENTION_DIR/$NEXT" 2>/dev/null
@@ -336,6 +438,7 @@ fi
 # Walk the queue oldest-first. A marker whose window has since been closed is
 # stale: drop it and move on rather than making the key look broken.
 CURRENT=$(current_session)
+dbg "jump: current=${CURRENT:-EMPTY} queued=$(queue | grep -c . || true)"
 FOUND=0
 while IFS=$'\t' read -r epoch project uuid tty file; do
     [ -n "$epoch" ] || continue
@@ -361,7 +464,9 @@ while IFS=$'\t' read -r epoch project uuid tty file; do
         break
     fi
 
-    case "$(focus_iterm "$uuid")" in
+    RESULT=$(focus_iterm "$uuid")
+    dbg "jump: focusing $project ($uuid) -> $RESULT"
+    case "$RESULT" in
         ok)
             rm -f "$file" 2>/dev/null
             FOUND=1
@@ -384,19 +489,25 @@ if [ "$FOUND" -eq 0 ]; then
     # One session, and it is the one you are in: there is genuinely nowhere to
     # go, and cycling to yourself is the "nothing happened" this was meant to
     # fix.
+    dbg "jump: nothing waiting, falling back to cycle -> ${NEXT:-EMPTY}"
     if [ -n "$NEXT" ] && [ "$NEXT" != "$CURRENT" ]; then
         if [ "$DRY_RUN" = "1" ]; then
             printf 'cycle\t%s\n' "$NEXT"
             FOUND=1
-        elif [ "$(focus_iterm "$NEXT")" = "ok" ]; then
-            FOUND=1
+        else
+            RESULT=$(focus_iterm "$NEXT")
+            dbg "jump: cycle focus -> $RESULT"
+            [ "$RESULT" = "ok" ] && FOUND=1
         fi
     fi
 fi
 
 if [ "$FOUND" -eq 0 ]; then
+    dbg "jump: nowhere to go — sounding"
     notify "Nothing waiting"
     [ "$DRY_RUN" = "1" ] && echo "nothing waiting"
+else
+    dbg "jump: done"
 fi
 
 exit 0
