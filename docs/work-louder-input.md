@@ -81,17 +81,25 @@ because the layer key is not part of the keymap.
 | Row | Column | Type | Sends | Does |
 | --- | --- | --- | --- | --- |
 | 0 | 1 | Smart Action | Launch `JumpToAttention.app` | Go to the session waiting on you |
-| 0 | 2 | Key | `ctrl+r` | Search prompt history |
-| 1 | 0 | Key | `ctrl+t` | Todo list |
+| 0 | 2 | Smart Action | Launch `NextSession.app` | Switch chat — next session |
+| 1 | 0 | Smart Action | Launch `NewSession.app` | New chat, in a new window |
 | 1 | 1 | Key | `ctrl+o` | Transcript |
 | 1 | 2 | Key | `shift+tab` | Cycle permission mode |
 | 1 | 3 | Key | `ctrl+c` | Interrupt |
 | 2 | 0 | Key | `opt+p` | Model picker |
-| 2 | 1 | Key | `opt+t` | Thinking toggle |
-| 2 | 2 | Key | `opt+o` | Fast mode |
+| 2 | 1 | Key | `ctrl+t` | Todo list |
+| 2 | 2 | Key | `ctrl+r` | Search prompt history |
 | 2 | 3 | Key | `ctrl+b` | Background the task |
 | 3 | **1 and 2** | Key | `Space` | Voice dictation, held — the fat key |
 | 3 | 3 | Key | `Enter` | Submit |
+
+**Three of the twelve are Smart Actions, not keystrokes.** New chat, switch
+chat, and jump-to-attention are the three things Claude Code cannot do — every
+action that named them (`strip:new`, `strip:next`, `strip:previous`,
+`strip:toggle`, `chat:attentionUp`, `chat:attentionDown`) is declared without an
+implementation. They are windows this repo opens and focuses, so they are apps
+you launch rather than keys you send. [Building them](#the-session-keys) is
+three one-line commands.
 
 **Every keystroke above is one Claude Code already binds itself.** Nothing on
 this pad depends on `config/keybindings.json`, which is why the layout is worth
@@ -109,40 +117,65 @@ The bottom row is the core loop: hold the fat key and talk, release, press
 one of the two and the stored keymap does not reveal which. Setting both is
 harmless and guarantees it works either way.
 
-### The jump key
+### The session keys
 
-Row 0, column 1 is the one key here that is not a keystroke, and it is the most
-useful key on the pad: it takes you to whichever session has been waiting on you
-longest, and pressing it again takes you to the next one.
+Three keys — jump, switch, new — are the ones that made this repo necessary.
+Claude Code names all three and implements none of them, so each is a small
+script driving iTerm2, wrapped in an app because Smart Actions launch
+applications and cannot run a script directly.
 
-Claude Code cannot do this. Its action list contains `chat:attentionDown`,
-`chat:attentionUp` and thirteen `strip:*` actions that describe exactly this
-feature, and all sixteen are names with no implementation behind them — binding
-a key to one produces silence, not an error. So the jump happens at the window
-level instead, driven by the notification hook this repo installs.
-
-Build the app it launches with one command:
+Build all three with `osacompile`, which ships with macOS:
 
 ```bash
-osacompile -o ~/Applications/JumpToAttention.app \
-  -e 'do shell script "$HOME/.claude/hooks/jump-to-attention.sh"'
+for spec in "JumpToAttention:" "NextSession:--next" "NewSession:--new"; do
+  osacompile -o ~/Applications/"${spec%%:*}".app \
+    -e "do shell script \"\$HOME/.claude/hooks/jump-to-attention.sh ${spec##*:}\""
+done
 ```
 
-Then set row 0, column 1 to a **Smart Action** pointing at
-`~/Applications/JumpToAttention.app`, exactly as you would for launching any
-other app.
+Then point three **Smart Actions** at them, exactly as you would for launching
+any other app.
 
-`osacompile` ships with macOS; nothing needs installing. The app is a wrapper
-whose only job is to give Input something launchable to point at, because Smart
-Actions launch applications and cannot run a script directly.
+| App | Does | When there is nowhere to go |
+| --- | --- | --- |
+| `JumpToAttention` | Focuses the session waiting longest | Falls back to the next session |
+| `NextSession` | Next session, in order, always | Plays a sound |
+| `NewSession` | New window running `claude` | — |
 
-The queue empties as you work: arriving at a session clears it, and so does
-typing into one, so the key stops doing anything once nothing is waiting. If you
-want to see the queue without moving:
+**Jump and switch are different keys on purpose.** Jump prioritises by wait
+time and has to go quiet when nothing is waiting; switch has to move on every
+press or it is not a switch key. One key cannot do both without compromising
+one of them.
+
+`NewSession` starts in the same directory as the session you pressed it from,
+so one window per worktree stays one window per worktree.
+
+**The first press will not move anything.** macOS asks permission the first time
+the app tries to control iTerm2, and the script sits waiting until you answer.
+Approve it, then press again. If you missed the prompt it is in System Settings →
+Privacy & Security → Automation, under `JumpToAttention`.
+
+**A press with nothing waiting plays a short sound and does nothing else.** That
+is the design — but it is worth knowing, because the first time you test this
+there will usually be nothing waiting, and a key that does nothing looks exactly
+like a key that is not wired up. Same for pressing it *in* the session that is
+waiting: there is nowhere to go, so you get the sound. The marker is cleared
+either way.
+
+To be sure the key works, you need **two** sessions: start Claude Code in a
+second window, give it a long task, come back to the first, and press when the
+notification arrives.
+
+The queue empties as you work: arriving at a session clears it, typing into one
+clears it, and pressing the key while you are already in a waiting session
+clears that one and moves you to the next. To see the queue without moving:
 
 ```bash
 ~/.claude/hooks/jump-to-attention.sh --list
 ```
+
+If that prints `nothing waiting`, the key has nothing to do and the fault is not
+in your pad.
 
 This needs iTerm2. It finds windows through iTerm2's scripting interface, and
 there is no equivalent path for Terminal.app in this repo — the marker is still
@@ -208,11 +241,17 @@ keystrokes you rarely want mid-flow:
 
 | Key | Does |
 | --- | --- |
+| `opt+t` | Thinking toggle |
+| `opt+o` | Fast mode |
 | `ctrl+g` | External editor |
 | `ctrl+s` | Stash the prompt |
 | `ctrl+shift+b` | Toggle the brief |
 | `opt+k` | Kill running agents |
 | `opt+z` | Undo |
+
+Thinking and fast mode are settings you change now and then rather than every
+turn, which is what lost them their keys to the three session actions. They
+still work from the keyboard.
 
 The last two are the only entries in this repo's `config/keybindings.json`.
 Claude Code binds those actions to `ctrl+x ctrl+k` and `ctrl+_` — a two-key chord

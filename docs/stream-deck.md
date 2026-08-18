@@ -20,8 +20,6 @@ the key together.
 | Cycle permission mode | `shift+tab` |
 | Interrupt | `ctrl+c` |
 | Model picker | `opt+p` |
-| Thinking toggle | `opt+t` |
-| Fast mode | `opt+o` |
 | Background the task | `ctrl+b` |
 | Submit | `Enter` |
 

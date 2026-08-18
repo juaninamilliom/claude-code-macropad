@@ -124,10 +124,12 @@ jq -s '.[0] as $cur | .[1] as $new
 #    it up. If you already had bindings, merge yours back from the .bak-* copy.
 cp config/keybindings.json ~/.claude/keybindings.json
 
-# 4. Voice, and the jump app
+# 4. Voice, and the three session apps
 # run inside Claude Code:  /voice hold
-osacompile -o ~/Applications/JumpToAttention.app \
-  -e 'do shell script "$HOME/.claude/hooks/jump-to-attention.sh"'
+for spec in "JumpToAttention:" "NextSession:--next" "NewSession:--new"; do
+  osacompile -o ~/Applications/"${spec%%:*}".app \
+    -e "do shell script \"\$HOME/.claude/hooks/jump-to-attention.sh ${spec##*:}\""
+done
 ```
 
 Then confirm the merge landed. Print the commands rather than the event names —
@@ -153,8 +155,10 @@ the commands rather than matching the listing.
 
 ## The layout
 
-Twelve keys. Every one sends a keystroke Claude Code binds itself, so the layout
-depends on no configuration at all.
+Twelve keys. Nine send a keystroke Claude Code binds itself, so they depend on no
+configuration at all. The other three — **new chat, switch chat, jump to
+attention** — launch small apps, because those are precisely the three things
+Claude Code cannot do.
 
 | Key | Does |
 | --- | --- |
@@ -164,13 +168,23 @@ depends on no configuration at all.
 | `shift+tab` | Cycle permission mode |
 | `ctrl+c` | Interrupt |
 | `opt+p` | Model picker |
-| `opt+t` | Thinking toggle |
-| `opt+o` | Fast mode |
 | `ctrl+b` | Background the task |
 | `Space` | Voice dictation, held |
 | `Enter` | Submit |
 
-The twelfth key is the jump key, which is not a keystroke — see below.
+The remaining three are apps, not keystrokes:
+
+| App | Key does | When there is nowhere to go |
+| --- | --- | --- |
+| `JumpToAttention` | Goes to the session waiting longest | Falls back to the next session |
+| `NextSession` | Switch chat — next session, always | Plays a sound |
+| `NewSession` | New chat, in a new window | — |
+
+**Jump and switch are separate on purpose.** Jump prioritises by wait time and
+has to go quiet when nothing is waiting; switch has to move on every press or it
+is not a switch key. One key cannot do both without spoiling one of them.
+`NewSession` opens in the same directory you pressed it from, so one window per
+worktree stays one window per worktree.
 
 `opt` is the Option key, which is what device configurators label the button.
 Claude Code spells the same modifier `alt` in `keybindings.json` and `meta` in
@@ -198,6 +212,16 @@ pile up.
 On a pad with an app-launcher action, point it at the `JumpToAttention.app` built
 in step 4. Otherwise bind the script to a hotkey with Karabiner —
 [`docs/stream-deck.md`](docs/stream-deck.md#running-the-jump-script-from-a-key).
+
+Two things to expect the first time, both of which look like a broken key:
+
+- **The first press is eaten by a permission prompt.** macOS asks before letting
+  the app control iTerm2, and the script waits for the answer. Approve it and
+  press again.
+- **A press with nothing waiting plays a short sound and does nothing else.** So
+  does pressing it inside the only session that is waiting — there is nowhere to
+  go. Testing a new key immediately, when nothing is waiting, is the usual way
+  people conclude it does not work. **Use two windows.**
 
 To see the queue without moving:
 
@@ -244,15 +268,17 @@ strip:next  strip:previous  chat:attentionDown      selection:clear
 strip:toggle strip:new      chat:cycleProactivity
 ```
 
-Thirteen of those are session-strip navigation and two more are
-jump-to-the-session-that-wants-you — exactly the feature this repo wanted. They
-validate, they load, they match your keypress, and then nothing happens. No
-error, at any layer. Claude Code's own documentation generator filters `strip:*`
-and `chat:attention*` out of its shortcut table, which is corroboration that they
-are not meant to work yet.
+Read the names: `strip:new` is new chat, `strip:next` and `strip:previous` are
+switch chat, `chat:attentionDown` is jump-to-the-session-that-wants-you. **The
+three session actions everyone wants from a macropad are exactly the three that
+do not work.** They validate, they load, they match your keypress, and then
+nothing happens. No error, at any layer. Claude Code's own documentation
+generator filters `strip:*` and `chat:attention*` out of its shortcut table,
+which is corroboration that they are not meant to work yet.
 
 Earlier versions of this repo bound five keys to those names and shipped them.
-The jump key exists because that had to be rebuilt outside Claude Code entirely.
+The three session apps exist because all of it had to be rebuilt outside Claude
+Code, against iTerm2 rather than against Claude Code.
 
 `tests/test-keybindings.sh` now fails on any of the eighteen. If you extend
 `config/keybindings.json`, run it.

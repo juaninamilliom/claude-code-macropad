@@ -22,8 +22,6 @@ Assign these in the **Keymap** tab, one key each:
 | `LSFT(KC_TAB)` | Cycle permission mode |
 | `LCTL(KC_C)` | Interrupt |
 | `LALT(KC_P)` | Model picker |
-| `LALT(KC_T)` | Thinking toggle |
-| `LALT(KC_O)` | Fast mode |
 | `LCTL(KC_B)` | Background the task |
 | `KC_SPACE` | Voice dictation, held |
 | `KC_ENTER` | Submit |
