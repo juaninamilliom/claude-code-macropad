@@ -52,6 +52,26 @@ fi
 ATTENTION_DIR=$(macropad_attention_dir)
 DRY_RUN="${CLAUDE_MACROPAD_DRY_RUN:-0}"
 
+# Every run records what it decided, overwriting the last. Two lines of disk in
+# exchange for never again having to rebuild an app to find out what happened.
+#
+# Rebuilding is the thing worth avoiding: osacompile re-signs the bundle, macOS
+# reads that as a different application, and its Automation permission for
+# iTerm2 goes back to unasked. The next launch then blocks on a permission
+# dialog that a macropad press gives you no reason to look for — the key simply
+# stops working. Debugging by rebuilding the app therefore breaks the thing it
+# is trying to measure.
+LOG="${CLAUDE_MACROPAD_STATE_DIR:-$HOME/.claude/macropad}/last-run.log"
+dbg() {
+    [ "$DRY_RUN" = "1" ] && return 0
+    printf '%s\n' "$*" >> "$LOG" 2>/dev/null
+}
+if [ "$DRY_RUN" != "1" ]; then
+    mkdir -p "$(dirname "$LOG")" 2>/dev/null
+    : > "$LOG" 2>/dev/null
+    dbg "$(date '+%H:%M:%S') argv=${*:-<none>}"
+fi
+
 notify() {
     [ "$DRY_RUN" = "1" ] && return 0
     # A notification is the nicer signal but needs this app to be allowed in
@@ -67,25 +87,33 @@ notify() {
         "$1" "Claude Code" 2>/dev/null
 }
 
-# The session iTerm2 is showing right now, or empty when iTerm2 is not the
-# frontmost app. Used to skip the window you are already looking at: pressing
-# the key there should take you to the *next* thing that wants you, not
-# redraw the window under your nose.
+# The session iTerm2 is showing right now. Used to skip the window you are
+# already looking at: pressing a key there should take you to the *next* thing,
+# not redraw the window under your nose.
 #
-# Only skip when iTerm2 is actually frontmost. Coming from another application
-# you want the waiting session focused even if it happens to be iTerm2's
-# current one, because you cannot see it.
+# This deliberately does NOT check whether iTerm2 is the frontmost application,
+# and that is the whole point. An earlier version did, returning empty unless
+# iTerm2 was frontmost — reasoning that from another app you cannot see iTerm2's
+# current session anyway. It broke the main path completely.
+#
+# A macropad triggers this by launching an app. That app is frontmost while it
+# runs, so a frontmost check reports "not iTerm2" on **every** press from the
+# pad. With no current session, cycling starts from the first entry in the list,
+# which is frequently the window you are already in — so the key does nothing,
+# every time, while working perfectly when run from a shell. That is exactly how
+# it was reported: "new session works, next session does not."
+#
+# iTerm2 tracks its own current session whether or not it has focus, which is
+# the right answer here: a pad user is working in iTerm2 by definition.
 current_session() {
     # Tests pin this rather than asking the window server, so the skip logic
-    # above can be exercised without moving a real window around.
+    # can be exercised without moving a real window around.
     if [ -n "${CLAUDE_MACROPAD_CURRENT_SESSION:-}" ]; then
         printf '%s' "$CLAUDE_MACROPAD_CURRENT_SESSION"
         return 0
     fi
     [ "$DRY_RUN" = "1" ] && return 0
     osascript \
-        -e 'tell application "System Events" to set f to name of first process whose frontmost is true' \
-        -e 'if f is not "iTerm2" then return ""' \
         -e 'tell application "iTerm2" to return id of current session of current tab of current window' \
         2>/dev/null
 }
@@ -280,14 +308,20 @@ fi
 # compromised.
 if [ "${1:-}" = "--next" ]; then
     CURRENT=$(current_session)
-    NEXT=$(cycle_next "$CURRENT" "$(claude_sessions)")
+    SESSIONS=$(claude_sessions)
+    NEXT=$(cycle_next "$CURRENT" "$SESSIONS")
+    dbg "current=${CURRENT:-<none>}"
+    dbg "sessions=$(printf '%s' "$SESSIONS" | tr '\n' ' ')"
+    dbg "next=${NEXT:-<none>}"
 
     if [ -n "$NEXT" ] && [ "$NEXT" != "$CURRENT" ]; then
         if [ "$DRY_RUN" = "1" ]; then
             printf 'cycle\t%s\n' "$NEXT"
             exit 0
         fi
-        if [ "$(focus_iterm "$NEXT")" = "ok" ]; then
+        RESULT=$(focus_iterm "$NEXT")
+        dbg "focus=${RESULT:-<empty: iTerm2 unreachable, or an Automation prompt is waiting>}"
+        if [ "$RESULT" = "ok" ]; then
             # Arriving counts as having seen it, same as the jump key.
             rm -f "$ATTENTION_DIR/$NEXT" 2>/dev/null
             exit 0
