@@ -44,8 +44,6 @@ ctrl+o${TAB}Transcript
 shift+tab${TAB}Cycle permission mode
 ctrl+c${TAB}Interrupt
 opt+p${TAB}Model picker
-opt+t${TAB}Thinking toggle
-opt+o${TAB}Fast mode
 ctrl+b${TAB}Background the task
 Space${TAB}Voice dictation, held
 Enter${TAB}Submit"

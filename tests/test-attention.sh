@@ -136,7 +136,116 @@ else
   fail "expected \"nothing waiting\", got \"$OUT\""
 fi
 
-# --- 8. An empty queue reports itself instead of failing --------------------
+# --- 8. With nothing waiting, cycle to the next session ---------------------
+# The queue drains by design, so after you have visited everything the key has
+# nothing to jump to. Stopping dead there reads as a broken key — four
+# "nothing waiting" sounds in a row was the original report — so it falls back
+# to moving between sessions.
+SESSIONS=$'AAA\t/dev/ttys001\nBBB\t/dev/ttys002\nCCC\t/dev/ttys003'
+rm -rf "$ATT"
+
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if [ "$OUT" = "$(printf 'cycle\tBBB')" ]; then
+  pass "an empty queue cycles to the next session"
+else
+  fail "expected cycle to BBB, got \"$OUT\""
+fi
+
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=CCC \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if [ "$OUT" = "$(printf 'cycle\tAAA')" ]; then
+  pass "cycling wraps from the last session to the first"
+else
+  fail "expected wrap to AAA, got \"$OUT\""
+fi
+
+# A waiting session must still win. Cycling is the fallback, not the behaviour.
+mkdir -p "$ATT"
+printf '1000\turgent\tBBB\t/dev/ttys002\n' > "$ATT/BBB"
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if [ "$OUT" = "$(printf 'urgent\tBBB')" ]; then
+  pass "a waiting session takes priority over cycling"
+else
+  fail "expected the waiting session to win, got \"$OUT\""
+fi
+
+# One session, and you are in it: nowhere to go, and cycling to yourself is
+# exactly the do-nothing this was meant to remove.
+rm -rf "$ATT"
+OUT=$(CLAUDE_MACROPAD_SESSIONS=$'AAA\t/dev/ttys001' CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if printf '%s' "$OUT" | grep -q "nothing waiting"; then
+  pass "a lone session does not cycle to itself"
+else
+  fail "expected \"nothing waiting\", got \"$OUT\""
+fi
+
+# --- 9. --next always moves; --new always opens ------------------------------
+# These are the "switch chat" and "new chat" keys. Claude Code implements
+# neither: strip:next and strip:new are both on the unimplemented list, so both
+# are window management rather than shortcuts.
+#
+# --next differs from the plain jump in that it ignores the queue entirely. A
+# switch key that sometimes went somewhere else because a different session was
+# waiting would not be a switch key.
+rm -rf "$ATT"; mkdir -p "$ATT"
+printf '1000\turgent\tCCC\t/dev/ttys003\n' > "$ATT/CCC"
+SESSIONS=$'AAA\t/dev/ttys001\nBBB\t/dev/ttys002\nCCC\t/dev/ttys003'
+
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh" --next)
+if [ "$OUT" = "$(printf 'cycle\tBBB')" ]; then
+  pass "--next moves by position, ignoring the waiting session"
+else
+  fail "--next should have gone to BBB regardless of CCC waiting, got \"$OUT\""
+fi
+
+# Same state, plain jump: the waiting session wins. Both behaviours from one
+# script, which is the point of having two keys.
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if [ "$OUT" = "$(printf 'urgent\tCCC')" ]; then
+  pass "the plain jump still prioritises the waiting session"
+else
+  fail "the plain jump should have gone to CCC, got \"$OUT\""
+fi
+
+OUT=$(CLAUDE_MACROPAD_SESSIONS=$'AAA\t/dev/ttys001' CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh" --next)
+if printf '%s' "$OUT" | grep -q "no other session"; then
+  pass "--next with nowhere to go says so"
+else
+  fail "expected \"no other session\", got \"$OUT\""
+fi
+
+# --new reports the directory it would start in. It must be a real one: the
+# fallback to $HOME exists so this can never be empty.
+OUT=$(CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh" --new)
+NEWDIR=${OUT#*$'\t'}
+if [ "${OUT%%$'\t'*}" = "new" ] && [ -d "$NEWDIR" ]; then
+  pass "--new resolves a real starting directory ($NEWDIR)"
+else
+  fail "--new produced no usable directory: \"$OUT\""
+fi
+
+
+# --- 10a. --sessions lists what the cycling modes can see -------------------
+# A diagnostic rather than a behaviour, and it earns its place: when this list
+# comes back empty, --next does nothing and reports "no other session", which
+# looks exactly like an unwired key. It was empty once because `tab` inside
+# `tell application "iTerm2"` is iTerm2's tab class, not the tab character, so
+# every line parsed to nothing while still being a well-formed string.
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" bash "$ROOT/scripts/jump-to-attention.sh" --sessions)
+if [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" = "3" ] \
+   && printf '%s' "$OUT" | grep -q '/dev/ttys002  BBB'; then
+  pass "--sessions lists every visible session with its tty"
+else
+  fail "--sessions output unexpected: $OUT"
+fi
+
+# --- 10. An empty queue reports itself instead of failing -------------------
 rm -rf "$ATT"
 OUT=$(CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh"); RC=$?
 if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "nothing waiting"; then
