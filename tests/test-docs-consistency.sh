@@ -37,7 +37,7 @@ pass() { echo "PASS: $*"; }
 TAB=$'\t'
 
 # Every keystroke on the pad, and the words every guide must use for it.
-# Claude Code 2.1.233 binds all of them itself.
+# Claude Code 2.1.234 binds all of them itself.
 PAD_TRUTH="ctrl+r${TAB}Search prompt history
 ctrl+t${TAB}Todo list
 ctrl+o${TAB}Transcript

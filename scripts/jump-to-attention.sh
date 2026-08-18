@@ -3,7 +3,7 @@
 #
 # This is the thing Claude Code itself cannot do. Its action list contains
 # chat:attentionDown, chat:attentionUp and thirteen strip:* actions that sound
-# exactly like this feature — and all sixteen are declared without an
+# exactly like this feature — and all fifteen are declared without an
 # implementation, so binding a key to one is silently a no-op. Session switching
 # has to happen at the window-manager level, which is what this does.
 #

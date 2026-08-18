@@ -162,12 +162,12 @@ echo "Optional keybindings"
 
 # keybindings.json is optional now: every key in the layout is one Claude Code
 # binds itself. When it is present, the thing worth checking is not whether the
-# action name is spelled right but whether the action does anything — eighteen
-# of the 137 names in 2.1.233 are declared with no implementation behind them.
+# action name is spelled right but whether the action does anything — seventeen
+# of the 137 names in 2.1.234 are declared with no implementation behind them.
 UNIMPLEMENTED="strip:jump1 strip:jump2 strip:jump3 strip:jump4 strip:jump5
 strip:jump6 strip:jump7 strip:jump8 strip:jump9 strip:next strip:previous
 strip:toggle strip:new chat:cycleProactivity chat:attentionUp
-chat:attentionDown permission:toggleDebug selection:clear"
+chat:attentionDown permission:toggleDebug"
 
 KB="$HOME/.claude/keybindings.json"
 if [ ! -f "$KB" ]; then

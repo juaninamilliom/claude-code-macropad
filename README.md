@@ -259,12 +259,12 @@ actions a single keystroke is the entire remaining job of that file.
 **It cannot switch Claude Code sessions from inside Claude Code.** That is not a
 design choice.
 
-Claude Code 2.1.233 declares 137 keybinding actions. Eighteen of them have no
+Claude Code 2.1.234 declares 137 keybinding actions. Seventeen of them have no
 implementation behind the name:
 
 ```
 strip:jump1 … strip:jump9   chat:attentionUp        permission:toggleDebug
-strip:next  strip:previous  chat:attentionDown      selection:clear
+strip:next  strip:previous  chat:attentionDown
 strip:toggle strip:new      chat:cycleProactivity
 ```
 
@@ -280,8 +280,12 @@ Earlier versions of this repo bound five keys to those names and shipped them.
 The three session apps exist because all of it had to be rebuilt outside Claude
 Code, against iTerm2 rather than against Claude Code.
 
-`tests/test-keybindings.sh` now fails on any of the eighteen. If you extend
+`tests/test-keybindings.sh` fails on any of the seventeen. If you extend
 `config/keybindings.json`, run it.
+
+The list is version-specific and worth re-deriving after an upgrade: 2.1.233 had
+eighteen, and `selection:clear` gained an implementation in 2.1.234. None of the
+fifteen session actions did.
 
 ## How the install behaves
 
@@ -340,7 +344,7 @@ device profile to import. Budget about fifteen minutes of clicking.
 
 ## Tested against
 
-Claude Code **2.1.233**, on macOS, in iTerm2.
+Claude Code **2.1.234**, on macOS, in iTerm2. Re-derived against 2.1.233 as well.
 
 Verified by running it: the layout's keystrokes reach Claude Code once Option is
 set to `Esc+`; a custom `keybindings.json` binding does fire, confirmed by
@@ -349,7 +353,7 @@ markers are written, cleared, ordered oldest-first, and survive stale and corrup
 entries; iTerm2 focuses a session by the id the hook records; an `osacompile` app
 runs the jump script; the step 2 merge preserves pre-existing hooks.
 
-Verified by reading the 2.1.233 binary: the eighteen unimplemented actions; the
+Verified by reading the 2.1.234 binary: the seventeen unimplemented actions; the
 `π`/`ø`/`†` fallback map; that no `alt+` default exists to collide with `opt+k`
 or `opt+z`; that Claude Code's terminal parser decodes only `home`, `end`,
 `pageup` and `pagedown` among the escape-sequence keys — **function keys are not
@@ -386,7 +390,7 @@ bash tests/test-docs-consistency.sh
 ```
 
 They check, in order: that every binding uses a known context, a known action,
-and **no action from the unimplemented eighteen**; that the notification hook
+and **no action from the unimplemented seventeen**; that the notification hook
 names the project from the hook payload; that markers are written, replaced,
 cleared, ordered, and recovered from corruption; and that the layout tables in
 this README and all three device guides still agree, key and meaning.
