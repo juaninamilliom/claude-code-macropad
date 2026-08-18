@@ -38,7 +38,7 @@ error at any layer.
 
 ```
 strip:jump1 … strip:jump9   chat:attentionUp        permission:toggleDebug
-strip:next  strip:previous  chat:attentionDown      selection:clear
+strip:next  strip:previous  chat:attentionDown
 strip:toggle strip:new      chat:cycleProactivity
 ```
 

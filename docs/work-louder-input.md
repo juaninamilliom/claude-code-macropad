@@ -138,14 +138,20 @@ any other app.
 
 | App | Does | When there is nowhere to go |
 | --- | --- | --- |
-| `JumpToAttention` | Focuses the session waiting longest | Falls back to the next session |
+| `JumpToAttention` | Focuses the session waiting longest | Plays a sound and stays put |
 | `NextSession` | Next session, in order, always | Plays a sound |
 | `NewSession` | New window running `claude` | — |
 
-**Jump and switch are different keys on purpose.** Jump prioritises by wait
-time and has to go quiet when nothing is waiting; switch has to move on every
-press or it is not a switch key. One key cannot do both without compromising
-one of them.
+**Jump and switch are different keys on purpose.** Jump answers "who needs me?"
+— it prioritises by wait time and goes quiet when the answer is nobody. Switch
+moves on every press or it is not a switch key. One key cannot do both: an
+earlier version had jump fall back to switching when nothing was waiting, and
+the result was a jump key that walked through idle sessions exactly like the
+switch key, telling you nothing.
+
+A session "needs you" when the hooks say so, not by inspection: `Stop` on a
+finished turn, `Notification` on a request for input, and `UserPromptSubmit`
+clears it because typing is responding.
 
 `NewSession` starts in the same directory as the session you pressed it from,
 so one window per worktree stays one window per worktree.

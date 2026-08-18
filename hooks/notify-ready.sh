@@ -38,11 +38,7 @@ CWD=$(json_field cwd)
 EVENT=$(json_field hook_event_name)
 SESSION_ID=$(json_field session_id)
 
-if [ -n "$CWD" ]; then
-    PROJECT=$(basename "$CWD")
-else
-    PROJECT="Claude Code"
-fi
+PROJECT=$(macropad_project "$CWD")
 
 case "$EVENT" in
     Notification) MESSAGE="Needs your input" ;;

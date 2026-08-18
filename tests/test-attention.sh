@@ -136,50 +136,31 @@ else
   fail "expected \"nothing waiting\", got \"$OUT\""
 fi
 
-# --- 8. With nothing waiting, cycle to the next session ---------------------
-# The queue drains by design, so after you have visited everything the key has
-# nothing to jump to. Stopping dead there reads as a broken key — four
-# "nothing waiting" sounds in a row was the original report — so it falls back
-# to moving between sessions.
+# --- 8. The jump key does NOT cycle when nothing is waiting ------------------
+# It answers "who needs me?", so an empty queue has to be reported as empty. An
+# earlier version fell back to cycling so the key never felt dead; with --next
+# carrying that job the fallback only made the two keys identical, and pressing
+# jump walked through idle sessions exactly like switch.
 SESSIONS=$'AAA\t/dev/ttys001\nBBB\t/dev/ttys002\nCCC\t/dev/ttys003'
 rm -rf "$ATT"
 
 OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
       CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
-if [ "$OUT" = "$(printf 'cycle\tBBB')" ]; then
-  pass "an empty queue cycles to the next session"
+if printf '%s' "$OUT" | grep -q "nothing waiting"; then
+  pass "an empty queue reports nothing waiting instead of cycling"
 else
-  fail "expected cycle to BBB, got \"$OUT\""
+  fail "the jump key cycled with an empty queue; it should have stayed put: \"$OUT\""
 fi
 
-OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=CCC \
-      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
-if [ "$OUT" = "$(printf 'cycle\tAAA')" ]; then
-  pass "cycling wraps from the last session to the first"
-else
-  fail "expected wrap to AAA, got \"$OUT\""
-fi
-
-# A waiting session must still win. Cycling is the fallback, not the behaviour.
+# A waiting session is still found, and still preferred over doing nothing.
 mkdir -p "$ATT"
 printf '1000\turgent\tBBB\t/dev/ttys002\n' > "$ATT/BBB"
 OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
       CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
 if [ "$OUT" = "$(printf 'urgent\tBBB')" ]; then
-  pass "a waiting session takes priority over cycling"
+  pass "a waiting session is still jumped to"
 else
-  fail "expected the waiting session to win, got \"$OUT\""
-fi
-
-# One session, and you are in it: nowhere to go, and cycling to yourself is
-# exactly the do-nothing this was meant to remove.
-rm -rf "$ATT"
-OUT=$(CLAUDE_MACROPAD_SESSIONS=$'AAA\t/dev/ttys001' CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
-      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
-if printf '%s' "$OUT" | grep -q "nothing waiting"; then
-  pass "a lone session does not cycle to itself"
-else
-  fail "expected \"nothing waiting\", got \"$OUT\""
+  fail "expected the waiting session, got \"$OUT\""
 fi
 
 # --- 9. --next always moves; --new always opens ------------------------------
@@ -243,6 +224,35 @@ if [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" = "3" ] \
   pass "--sessions lists every visible session with its tty"
 else
   fail "--sessions output unexpected: $OUT"
+fi
+
+
+# --- 9a. A marker with no iTerm2 id is resolved through its tty -------------
+# The hook reads the session id from ITERM_SESSION_ID, which is not always
+# inherited — a running Claude Code session was observed to have it and then
+# not. The tty is always recorded, because it comes from walking the process
+# tree rather than from the environment. Discarding such a marker drops a
+# session that really is waiting, which is indistinguishable from the jump key
+# being broken.
+rm -rf "$ATT"; mkdir -p "$ATT"
+printf '1000\tno-uuid\t\t/dev/ttys002\n' > "$ATT/ttys002"
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if [ "$OUT" = "$(printf 'no-uuid\tBBB')" ]; then
+  pass "a marker with no session id is resolved through its tty"
+else
+  fail "expected the tty to resolve to BBB, got \"$OUT\""
+fi
+
+# But one whose tty matches no live window is genuinely stale.
+rm -rf "$ATT"; mkdir -p "$ATT"
+printf '1000\tghost\t\t/dev/ttys999\n' > "$ATT/ttys999"
+OUT=$(CLAUDE_MACROPAD_SESSIONS="$SESSIONS" CLAUDE_MACROPAD_CURRENT_SESSION=AAA \
+      CLAUDE_MACROPAD_DRY_RUN=1 bash "$ROOT/scripts/jump-to-attention.sh")
+if [ ! -f "$ATT/ttys999" ]; then
+  pass "a marker whose tty matches no window is dropped"
+else
+  fail "a stale tty-only marker survived and would jam the queue"
 fi
 
 # --- 10. An empty queue reports itself instead of failing -------------------

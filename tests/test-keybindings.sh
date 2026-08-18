@@ -6,7 +6,7 @@
 #
 # Check 7 is the one that matters, and it is the reason this file was rewritten.
 #
-# Claude Code 2.1.233 declares 137 action names. Eighteen of them have no
+# Claude Code 2.1.234 declares 137 action names. Seventeen of them have no
 # implementation behind the name: the validator accepts them, the loader binds
 # them, the keystroke is matched, and then nothing happens. There is no error
 # anywhere in that chain. This repo shipped five such bindings for weeks and the
@@ -28,7 +28,7 @@ FAILED=0
 fail() { echo "FAIL: $*"; FAILED=1; }
 pass() { echo "PASS: $*"; }
 
-# Complete for 2.1.233.
+# Complete for 2.1.234.
 VALID_CONTEXTS="Global Chat Autocomplete Confirmation Help Transcript
 HistorySearch Task ThemePicker Settings Tabs Attachments Footer
 MessageSelector DiffDialog DiffPanel ModelPicker Select Plugin Scroll"
@@ -43,23 +43,29 @@ chat:imagePaste voice:pushToTalk history:search history:previous history:next
 app:toggleTodos app:toggleTranscript app:toggleBrief app:interrupt app:exit
 app:toggleTerminal app:openArtifact task:background tabs:next tabs:previous"
 
-# Declared in 2.1.233 but with no implementation behind the name. Binding any of
+# Declared in 2.1.234 but with no implementation behind the name. Binding any of
 # these produces a key that does nothing, silently and permanently.
 #
-# Derived by extracting the canonical action list from the 2.1.233 binary and
-# checking each name for a dispatch site outside the list itself and the
-# documentation-table filter. These eighteen had none. The same binary also
+# Derived by extracting the canonical action list from the binary and checking
+# each name for a dispatch site outside the list itself and the
+# documentation-table filter. These seventeen had none. The same binary also
 # excludes strip:* and chat:attention* from its own generated shortcut table,
 # which is corroboration from upstream that they are not meant to work yet.
 #
-# If a future release implements one, delete it from here — do not add a special
-# case. And if a binding you were relying on stops working after an upgrade,
-# re-derive this list before blaming your terminal.
+# **This list is version-specific.** 2.1.233 had eighteen; `selection:clear`
+# gained an implementation in 2.1.234 and was removed from here. None of the
+# fifteen session actions — thirteen strip:* and two chat:attention* — changed,
+# which is why this repo still drives session switching through iTerm2.
+#
+# Re-derive after an upgrade rather than trusting this list. If a release
+# implements one, delete it from here; do not add a special case. And if a
+# binding you were relying on stops working after an upgrade, re-derive before
+# blaming your terminal.
 UNIMPLEMENTED_ACTIONS="strip:jump1 strip:jump2 strip:jump3 strip:jump4
 strip:jump5 strip:jump6 strip:jump7 strip:jump8 strip:jump9
 strip:next strip:previous strip:toggle strip:new
 chat:cycleProactivity chat:attentionUp chat:attentionDown
-permission:toggleDebug selection:clear"
+permission:toggleDebug"
 
 in_list() { echo "$2" | tr ' \n' '\n\n' | grep -qx "$1"; }
 
@@ -110,7 +116,7 @@ while IFS= read -r action; do
   else fail "unknown action: $action"; fi
 done < <(jq -r '.bindings[].bindings | to_entries[] | .value | select(. != null)' "$FILE")
 
-# 7. No action is one of the eighteen that do nothing. See the header.
+# 7. No action is one of the seventeen that do nothing. See the header.
 SEEN=0
 while IFS= read -r action; do
   SEEN=$((SEEN + 1))

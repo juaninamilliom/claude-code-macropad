@@ -176,7 +176,7 @@ The remaining three are apps, not keystrokes:
 
 | App | Key does | When there is nowhere to go |
 | --- | --- | --- |
-| `JumpToAttention` | Goes to the session waiting longest | Falls back to the next session |
+| `JumpToAttention` | Goes to the session waiting longest | Plays a sound and stays put |
 | `NextSession` | Switch chat — next session, always | Plays a sound |
 | `NewSession` | New chat, in a new window | — |
 
@@ -201,13 +201,17 @@ Per-device instructions:
 
 ### The jump key
 
-`hooks/notify-ready.sh` fires whenever a session finishes a turn or asks for
-input. Besides the notification, it writes down which terminal window that
-session is in. `scripts/jump-to-attention.sh` reads those records oldest-first,
-focuses that window, and clears it — so pressing the key repeatedly walks you
-through everything waiting, longest-waiting first, and stops when the queue is
-empty. Typing into a session also clears it, so sessions you reach by hand do not
-pile up.
+**"Needs you" is recorded, not inferred.** `Stop` fires when Claude finishes a
+turn and `Notification` when it wants input; each writes down which terminal
+window that session is in. `UserPromptSubmit` deletes the record, because typing
+is responding. A session has your attention pending exactly when it has a
+record.
+
+`scripts/jump-to-attention.sh` reads those oldest-first, focuses that window,
+and clears it — so pressing the key repeatedly walks you through everything
+waiting, longest-waiting first. **With nothing waiting it plays a sound and goes
+nowhere**, which is the answer to "who needs me?" when the answer is nobody. Use
+`NextSession` to move between idle sessions.
 
 On a pad with an app-launcher action, point it at the `JumpToAttention.app` built
 in step 4. Otherwise bind the script to a hotkey with Karabiner —
@@ -259,12 +263,12 @@ actions a single keystroke is the entire remaining job of that file.
 **It cannot switch Claude Code sessions from inside Claude Code.** That is not a
 design choice.
 
-Claude Code 2.1.233 declares 137 keybinding actions. Eighteen of them have no
+Claude Code 2.1.234 declares 137 keybinding actions. Seventeen of them have no
 implementation behind the name:
 
 ```
 strip:jump1 … strip:jump9   chat:attentionUp        permission:toggleDebug
-strip:next  strip:previous  chat:attentionDown      selection:clear
+strip:next  strip:previous  chat:attentionDown
 strip:toggle strip:new      chat:cycleProactivity
 ```
 
@@ -280,8 +284,12 @@ Earlier versions of this repo bound five keys to those names and shipped them.
 The three session apps exist because all of it had to be rebuilt outside Claude
 Code, against iTerm2 rather than against Claude Code.
 
-`tests/test-keybindings.sh` now fails on any of the eighteen. If you extend
+`tests/test-keybindings.sh` fails on any of the seventeen. If you extend
 `config/keybindings.json`, run it.
+
+The list is version-specific and worth re-deriving after an upgrade: 2.1.233 had
+eighteen, and `selection:clear` gained an implementation in 2.1.234. None of the
+fifteen session actions did.
 
 ## How the install behaves
 
@@ -340,7 +348,7 @@ device profile to import. Budget about fifteen minutes of clicking.
 
 ## Tested against
 
-Claude Code **2.1.233**, on macOS, in iTerm2.
+Claude Code **2.1.234**, on macOS, in iTerm2. Re-derived against 2.1.233 as well.
 
 Verified by running it: the layout's keystrokes reach Claude Code once Option is
 set to `Esc+`; a custom `keybindings.json` binding does fire, confirmed by
@@ -349,7 +357,7 @@ markers are written, cleared, ordered oldest-first, and survive stale and corrup
 entries; iTerm2 focuses a session by the id the hook records; an `osacompile` app
 runs the jump script; the step 2 merge preserves pre-existing hooks.
 
-Verified by reading the 2.1.233 binary: the eighteen unimplemented actions; the
+Verified by reading the 2.1.234 binary: the seventeen unimplemented actions; the
 `π`/`ø`/`†` fallback map; that no `alt+` default exists to collide with `opt+k`
 or `opt+z`; that Claude Code's terminal parser decodes only `home`, `end`,
 `pageup` and `pagedown` among the escape-sequence keys — **function keys are not
@@ -386,7 +394,7 @@ bash tests/test-docs-consistency.sh
 ```
 
 They check, in order: that every binding uses a known context, a known action,
-and **no action from the unimplemented eighteen**; that the notification hook
+and **no action from the unimplemented seventeen**; that the notification hook
 names the project from the hook payload; that markers are written, replaced,
 cleared, ordered, and recovered from corruption; and that the layout tables in
 this README and all three device guides still agree, key and meaning.

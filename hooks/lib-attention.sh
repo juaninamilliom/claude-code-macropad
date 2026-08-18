@@ -13,6 +13,35 @@ macropad_attention_dir() {
     printf '%s/attention' "${CLAUDE_MACROPAD_STATE_DIR:-$HOME/.claude/macropad}"
 }
 
+# The name to show for a session's project. $1 is the payload's cwd.
+#
+# Normally the directory name, which is what you recognise. But a host that
+# gives each session a scratch or worktree directory can set
+# CLAUDE_CODE_PROJECT_DIR_NAME (added in Claude Code 2.1.234) so the project
+# keeps its real name, and there the directory basename is a generated string
+# that tells you nothing — exactly the case where "which project wants me?"
+# matters most.
+#
+# The gating below mirrors Claude Code's own, deliberately: it honours the
+# variable only when CLAUDE_CONFIG_DIR is also set, requires
+# /^[A-Za-z0-9_-]{1,64}$/, and rejects the Windows reserved device names. Using
+# looser rules would let this notification disagree with the project name Claude
+# Code itself uses, which is worse than falling back to the directory.
+macropad_project() {
+    local cwd="${1:-}" name="${CLAUDE_CODE_PROJECT_DIR_NAME:-}"
+    if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ -n "$name" ] \
+       && printf '%s' "$name" | grep -qE '^[A-Za-z0-9_-]{1,64}$' \
+       && ! printf '%s' "$name" | grep -qiE '^(con|prn|aux|nul|com[0-9]|lpt[0-9])$'; then
+        printf '%s' "$name"
+        return 0
+    fi
+    if [ -n "$cwd" ]; then
+        basename "$cwd"
+    else
+        printf 'Claude Code'
+    fi
+}
+
 # The iTerm2 session UUID for this terminal window, empty elsewhere.
 #
 # ITERM_SESSION_ID looks like "w0t0p0:UUID". The prefix is the window/tab/pane

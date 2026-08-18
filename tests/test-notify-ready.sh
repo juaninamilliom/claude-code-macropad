@@ -68,5 +68,50 @@ run_case "empty stdin does not hang or crash" \
   '' \
   "$(printf 'Claude Code\tReady for input')"
 
+
+# --- CLAUDE_CODE_PROJECT_DIR_NAME -------------------------------------------
+# Added in Claude Code 2.1.234 for hosts that give each session a scratch or
+# worktree directory, where the cwd basename is a generated string. The gating
+# mirrors Claude Code's own: only honoured alongside CLAUDE_CONFIG_DIR, only
+# /^[A-Za-z0-9_-]{1,64}$/, never a Windows reserved device name. Anything looser
+# would let this notification name a project differently from Claude Code.
+
+env_case() {
+  local name="$1" expected="$2"; shift 2
+  local actual status
+  actual=$(printf '%s' '{"hook_event_name":"Stop","cwd":"/tmp/scratch-a1b2c3"}' \
+           | env "$@" CLAUDE_MACROPAD_DRY_RUN=1 bash "$SCRIPT" 2>/dev/null)
+  status=$?
+  if [ "$actual" = "$expected" ] && [ "$status" -eq 0 ]; then
+    echo "PASS: $name"
+  else
+    echo "FAIL: $name"
+    echo "  expected: [$expected]"
+    echo "  actual:   [$actual]"
+    FAILED=1
+  fi
+}
+
+env_case "project dir name is used when the config dir is set too" \
+  "$(printf 'my-project\tReady for input')" \
+  CLAUDE_CONFIG_DIR=/tmp/cfg CLAUDE_CODE_PROJECT_DIR_NAME=my-project
+
+env_case "ignored without CLAUDE_CONFIG_DIR, as Claude Code ignores it" \
+  "$(printf 'scratch-a1b2c3\tReady for input')" \
+  CLAUDE_CODE_PROJECT_DIR_NAME=my-project
+
+env_case "a name with a slash is rejected, not used as a path" \
+  "$(printf 'scratch-a1b2c3\tReady for input')" \
+  CLAUDE_CONFIG_DIR=/tmp/cfg CLAUDE_CODE_PROJECT_DIR_NAME=../../etc
+
+env_case "a Windows reserved device name is rejected" \
+  "$(printf 'scratch-a1b2c3\tReady for input')" \
+  CLAUDE_CONFIG_DIR=/tmp/cfg CLAUDE_CODE_PROJECT_DIR_NAME=NUL
+
+env_case "a name over 64 characters is rejected" \
+  "$(printf 'scratch-a1b2c3\tReady for input')" \
+  CLAUDE_CONFIG_DIR=/tmp/cfg \
+  CLAUDE_CODE_PROJECT_DIR_NAME=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
 if [ "$FAILED" -eq 0 ]; then echo "RESULT: PASSED"; exit 0; fi
 echo "RESULT: FAILED"; exit 1
