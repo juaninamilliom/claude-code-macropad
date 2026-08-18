@@ -12,15 +12,25 @@
 # window, and clears its marker — so pressing the key repeatedly walks you
 # through everything that wants you, longest-waiting first.
 #
-# When nothing is waiting it moves to the next Claude Code session instead. The
-# queue drains by design, and a key that goes dead once you have caught up reads
-# as broken rather than as finished, so the same key does both jobs: what needs
-# you first, then just the next session.
+# When nothing is waiting it does nothing but sound, and that restraint is the
+# point: this key answers "who needs me?", and if the answer is nobody it must
+# say so. An earlier version fell back to cycling, on the theory that a silent
+# key reads as broken. With --next now carrying that job, the fallback only made
+# the two keys behave identically — pressing "jump to what needs me" walked
+# through idle sessions exactly like the switch key, so it no longer told you
+# anything.
+#
+# "Needs you" is not inferred from the session. It is recorded by the hooks:
+# Stop fires when Claude finishes a turn, Notification when it wants input, and
+# UserPromptSubmit clears the marker because typing is responding.
 #
 # Usage:
-#   jump-to-attention.sh            focus the longest-waiting session, or the
-#                                   next one if nothing is waiting
+#   jump-to-attention.sh            focus the session waiting longest, or sound
+#                                   if none is waiting
+#   jump-to-attention.sh --next     next session, waiting or not
+#   jump-to-attention.sh --new      new session in a new window
 #   jump-to-attention.sh --list     print the queue, change nothing
+#   jump-to-attention.sh --sessions print the sessions --next can see
 #
 # Environment seams, used by tests/test-attention.sh:
 #   CLAUDE_MACROPAD_STATE_DIR=DIR   read markers under DIR
@@ -194,17 +204,33 @@ queue() {
     [ -d "$ATTENTION_DIR" ] || return 0
     for f in "$ATTENTION_DIR"/*; do
         [ -f "$f" ] || continue
-        IFS=$'\t' read -r epoch project uuid tty < "$f" || continue
+        # cut, not `IFS=$'\t' read`. Tab is IFS *whitespace*, so read collapses
+        # runs of it and an empty field silently disappears: a marker with no
+        # session id parses with the tty shifted into the uuid column, the
+        # script tries to focus a window whose id is "/dev/ttys000", gets
+        # notfound, and deletes a marker for a session that really was waiting.
+        # cut treats each tab as one delimiter and keeps empty fields empty.
+        local line
+        line=$(head -1 "$f" 2>/dev/null) || continue
+        epoch=$(printf '%s' "$line" | cut -f1)
+        project=$(printf '%s' "$line" | cut -f2)
+        uuid=$(printf '%s' "$line" | cut -f3)
+        tty=$(printf '%s' "$line" | cut -f4)
         case "$epoch" in
             ''|*[!0-9]*) rm -f "$f" 2>/dev/null; continue ;;
         esac
-        printf '%s\t%s\t%s\t%s\t%s\n' "$epoch" "${project:-Claude Code}" "$uuid" "$tty" "$f"
+        # \x1f, not a tab, between the fields this emits. `read` collapses runs
+        # of IFS *whitespace*, and a tab is whitespace, so an empty uuid would
+        # vanish on the way out and shift every later field left — the same bug
+        # this function was just fixed for on the way in. The unit separator is
+        # not whitespace, so empty fields survive.
+        printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$epoch" "${project:-Claude Code}" "$uuid" "$tty" "$f"
     done | sort -n
 }
 
 if [ "${1:-}" = "--list" ]; then
     n=0
-    while IFS=$'\t' read -r epoch project uuid tty _; do
+    while IFS=$'\x1f' read -r epoch project uuid tty _; do
         [ -n "$epoch" ] || continue
         n=$((n + 1))
         printf '%s  waiting %ss  %s\n' "$project" "$(( $(date +%s) - epoch ))" "${uuid:-${tty:-?}}"
@@ -261,19 +287,12 @@ focus_iterm() {
     printf '%s' "$out"
 }
 
-# ------------------------------------------------------------------ cycle ---
-# Nothing is waiting. Rather than stop dead, move to the next Claude Code
-# session anyway — which is the other half of what a session key is for, and
-# what people expect when they press it a second time.
+# ---------------------------------------------------------------- sessions ---
+# Every Claude Code session iTerm2 can see. Used by --next, and to resolve a
+# marker that recorded a tty but no session id.
 #
-# The queue drains by design: it refills only when a session finishes a turn or
-# asks for input. Once you have visited everything, further presses had nothing
-# to do, and four "nothing waiting" sounds in a row reads as a broken key rather
-# than as an empty queue.
-#
-# No state is kept for this. A Claude session is an iTerm2 session whose tty has
-# a claude process on it, which is true whether or not this repo's hooks ever
-# ran there.
+# No state is kept: a Claude session is an iTerm2 session whose tty has a claude
+# process on it, which is true whether or not this repo's hooks ever ran there.
 claude_sessions() {
     if [ -n "${CLAUDE_MACROPAD_SESSIONS:-}" ]; then
         printf '%s\n' "$CLAUDE_MACROPAD_SESSIONS"
@@ -438,9 +457,10 @@ fi
 # Walk the queue oldest-first. A marker whose window has since been closed is
 # stale: drop it and move on rather than making the key look broken.
 CURRENT=$(current_session)
+SESSION_LIST=$(claude_sessions)
 dbg "jump: current=${CURRENT:-EMPTY} queued=$(queue | grep -c . || true)"
 FOUND=0
-while IFS=$'\t' read -r epoch project uuid tty file; do
+while IFS=$'\x1f' read -r epoch project uuid tty file; do
     [ -n "$epoch" ] || continue
 
     # Already looking at it. Clear the marker — you have seen it — and carry on
@@ -450,10 +470,22 @@ while IFS=$'\t' read -r epoch project uuid tty file; do
         continue
     fi
 
+    # A marker can legitimately carry no iTerm2 session id. The hook reads it
+    # from ITERM_SESSION_ID, and that variable is not always inherited — it was
+    # observed missing from a running Claude Code session that had it earlier.
+    # The tty is always recorded, because it comes from walking the process
+    # tree rather than from the environment, so resolve through that instead of
+    # discarding a session that really is waiting.
+    if [ -z "$uuid" ] && [ -n "$tty" ]; then
+        uuid=$(printf '%s\n' "$SESSION_LIST" \
+               | awk -F'\t' -v want="$tty" '$2 == want { print $1; exit }')
+        dbg "jump: $project had no uuid; resolved $tty -> ${uuid:-NOTHING}"
+    fi
+
     if [ -z "$uuid" ]; then
-        # A terminal that exposed no iTerm2 session id. Nothing to focus by, so
-        # the marker is useless — say so once and drop it.
-        echo "jump-to-attention: $project has no iTerm2 session id; skipping" >&2
+        # Neither an id nor a tty that matches a live window: the session is
+        # gone, so the marker is stale rather than useful.
+        dbg "jump: $project cannot be located (tty=${tty:-none}); dropping"
         rm -f "$file" 2>/dev/null
         continue
     fi
@@ -482,26 +514,10 @@ while IFS=$'\t' read -r epoch project uuid tty file; do
     esac
 done < <(queue)
 
-if [ "$FOUND" -eq 0 ]; then
-    SESSIONS=$(claude_sessions)
-    NEXT=$(cycle_next "$CURRENT" "$SESSIONS")
 
     # One session, and it is the one you are in: there is genuinely nowhere to
     # go, and cycling to yourself is the "nothing happened" this was meant to
     # fix.
-    dbg "jump: nothing waiting, falling back to cycle -> ${NEXT:-EMPTY}"
-    if [ -n "$NEXT" ] && [ "$NEXT" != "$CURRENT" ]; then
-        if [ "$DRY_RUN" = "1" ]; then
-            printf 'cycle\t%s\n' "$NEXT"
-            FOUND=1
-        else
-            RESULT=$(focus_iterm "$NEXT")
-            dbg "jump: cycle focus -> $RESULT"
-            [ "$RESULT" = "ok" ] && FOUND=1
-        fi
-    fi
-fi
-
 if [ "$FOUND" -eq 0 ]; then
     dbg "jump: nowhere to go — sounding"
     notify "Nothing waiting"

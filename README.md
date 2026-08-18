@@ -176,7 +176,7 @@ The remaining three are apps, not keystrokes:
 
 | App | Key does | When there is nowhere to go |
 | --- | --- | --- |
-| `JumpToAttention` | Goes to the session waiting longest | Falls back to the next session |
+| `JumpToAttention` | Goes to the session waiting longest | Plays a sound and stays put |
 | `NextSession` | Switch chat — next session, always | Plays a sound |
 | `NewSession` | New chat, in a new window | — |
 
@@ -201,13 +201,17 @@ Per-device instructions:
 
 ### The jump key
 
-`hooks/notify-ready.sh` fires whenever a session finishes a turn or asks for
-input. Besides the notification, it writes down which terminal window that
-session is in. `scripts/jump-to-attention.sh` reads those records oldest-first,
-focuses that window, and clears it — so pressing the key repeatedly walks you
-through everything waiting, longest-waiting first, and stops when the queue is
-empty. Typing into a session also clears it, so sessions you reach by hand do not
-pile up.
+**"Needs you" is recorded, not inferred.** `Stop` fires when Claude finishes a
+turn and `Notification` when it wants input; each writes down which terminal
+window that session is in. `UserPromptSubmit` deletes the record, because typing
+is responding. A session has your attention pending exactly when it has a
+record.
+
+`scripts/jump-to-attention.sh` reads those oldest-first, focuses that window,
+and clears it — so pressing the key repeatedly walks you through everything
+waiting, longest-waiting first. **With nothing waiting it plays a sound and goes
+nowhere**, which is the answer to "who needs me?" when the answer is nobody. Use
+`NextSession` to move between idle sessions.
 
 On a pad with an app-launcher action, point it at the `JumpToAttention.app` built
 in step 4. Otherwise bind the script to a hotkey with Karabiner —
