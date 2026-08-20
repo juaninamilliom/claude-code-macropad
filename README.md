@@ -43,16 +43,25 @@ under [Limitations](#limitations).
 
 ## Terminal only
 
+This is a terminal tool. The Claude desktop app is a different application that
+happens to share a name, and almost nothing here reaches it.
+
 | | Terminal | Desktop app |
 | --- | --- | --- |
-| The layout's keystrokes | yes | **no** |
-| Jump to the waiting session | yes, iTerm2 | no |
-| Notification hooks | yes | yes — `settings.json` is shared |
-| Turning voice on (`/voice hold`) | yes | no — the command refuses |
+| The layout's keystrokes | yes | **no** — it never reads `keybindings.json` |
+| Voice on `Space` | yes | **no** — its microphone is a button with no shortcut |
+| Jump to the waiting session | yes, iTerm2 | **no** — one window, no per-conversation target |
+| New chat / switch chat | yes, via the session apps | yes, but via its own menu keys |
+| Notification hooks | yes | unconfirmed |
 
-**The Claude desktop app does not act on these keystrokes.** This was tested, not
-assumed. Use a terminal. The notification hooks still fire for desktop sessions
-because both read the same `settings.json`, but nothing else here applies.
+Measured, not assumed: `Claude.app` has zero references to `keybindings.json`,
+no AppleScript dictionary, and a single window whose conversations are tabs.
+What it *does* expose is menu shortcuts a macropad can send — `cmd+N` for a new
+conversation, `cmd+opt+←`/`→` to move between tabs. Those belong on a **separate
+Input layer linked to the app**, not folded into this layout.
+
+[`docs/desktop-app.md`](docs/desktop-app.md) has the full inventory and the
+reasoning. If you live in the desktop app, this repo is not for you yet.
 
 The jump script needs **iTerm2** specifically: it locates windows through
 iTerm2's scripting interface. Terminal.app has no equivalent path in this repo.
@@ -198,6 +207,7 @@ Per-device instructions:
 | Work Louder Creator Micro 2 | [`docs/work-louder-input.md`](docs/work-louder-input.md) |
 | Any VIA-compatible board | [`docs/qmk-via.md`](docs/qmk-via.md) |
 | Stream Deck, Karabiner | [`docs/stream-deck.md`](docs/stream-deck.md) |
+| The Claude desktop app | [`docs/desktop-app.md`](docs/desktop-app.md) — what it can and cannot do |
 
 ### The jump key
 
@@ -363,8 +373,12 @@ or `opt+z`; that Claude Code's terminal parser decodes only `home`, `end`,
 `pageup` and `pagedown` among the escape-sequence keys — **function keys are not
 readable from a terminal at all**, so do not put one in a binding.
 
-Not verified: the keystrokes arriving from a physical Creator Micro 2 rather than
-a keyboard, and any terminal other than iTerm2. The notification hook and the
+Verified on the pad itself: switching sessions in both directions, and the jump
+key reaching a waiting session, both driven from Smart Actions on a Creator
+Micro 2.
+
+Not verified: any terminal other than iTerm2, and whether the hooks fire for
+Claude desktop app sessions. The notification hook and the
 jump script are macOS-only; they shell out to `osascript`.
 
 ## Troubleshooting
